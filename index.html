@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SEKAI-Like Rhythm Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Kanit:wght@500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="bg-glow"></div>
+  <main class="app">
+    <header class="topbar">
+      <div class="title-wrap">
+        <h1>SEKAI-Like Rhythm Demo</h1>
+        <p>キー: D / F / J / K，またはレーンをタップ</p>
+      </div>
+      <div class="status">
+        <div><span class="label">Score</span><span id="score">0</span></div>
+        <div><span class="label">Combo</span><span id="combo">0</span></div>
+        <div><span class="label">Judge</span><span id="judge">-</span></div>
+      </div>
+    </header>
+
+    <section class="playfield-wrap">
+      <div class="playfield" id="playfield">
+        <div class="judge-line"></div>
+        <div class="lanes">
+          <button class="lane" data-lane="0" aria-label="lane 1"></button>
+          <button class="lane" data-lane="1" aria-label="lane 2"></button>
+          <button class="lane" data-lane="2" aria-label="lane 3"></button>
+          <button class="lane" data-lane="3" aria-label="lane 4"></button>
+        </div>
+        <div id="notes-layer"></div>
+      </div>
+    </section>
+
+    <footer class="controls">
+      <button id="startBtn" class="primary">START</button>
+      <button id="restartBtn">RESTART</button>
+      <div id="songProgress" class="progress">Ready</div>
+    </footer>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
