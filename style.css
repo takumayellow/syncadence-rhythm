@@ -134,12 +134,12 @@ body {
     ),
     linear-gradient(
       to right,
-      transparent 0 24.8%,
-      rgba(255, 255, 255, 0.34) 24.8% 25.2%,
-      transparent 25.2% 49.8%,
-      rgba(255, 255, 255, 0.34) 49.8% 50.2%,
-      transparent 50.2% 74.8%,
-      rgba(255, 255, 255, 0.34) 74.8% 75.2%,
+      transparent 0 24.7%,
+      rgba(255, 255, 255, 0.6) 24.7% 25.3%,
+      transparent 25.3% 49.7%,
+      rgba(255, 255, 255, 0.6) 49.7% 50.3%,
+      transparent 50.3% 74.7%,
+      rgba(255, 255, 255, 0.6) 74.7% 75.3%,
       transparent 75.2% 100%
     );
   transform-origin: top center;
@@ -167,21 +167,37 @@ body {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   clip-path: polygon(26% 8%, 74% 8%, 100% 100%, 0% 100%);
-  z-index: 2;
+  z-index: 3;
 }
 
 .lane {
   border: none;
-  border-left: 1px solid var(--lane-border);
-  border-right: 1px solid var(--lane-border);
-  background: var(--lane);
+  border-left: 2px solid rgba(255, 255, 255, 0.42);
+  border-right: 2px solid rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.06);
   cursor: pointer;
   transition: background 80ms ease;
 }
 
+.lane:nth-child(odd) {
+  background: rgba(120, 210, 255, 0.08);
+}
+
+.lane:nth-child(even) {
+  background: rgba(255, 120, 188, 0.07);
+}
+
+.lane:first-child {
+  border-left-color: rgba(255, 255, 255, 0.62);
+}
+
+.lane:last-child {
+  border-right-color: rgba(255, 255, 255, 0.62);
+}
+
 .lane:active,
 .lane.active {
-  background: rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.24);
 }
 
 .judge-line {

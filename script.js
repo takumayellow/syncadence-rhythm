@@ -39,7 +39,6 @@ const playfield = document.getElementById("playfield");
 const cueEl = document.getElementById("cueText");
 const hitFeedbackEl = document.getElementById("hitFeedback");
 const startBtn = document.getElementById("startBtn");
-const restartBtn = document.getElementById("restartBtn");
 const progressEl = document.getElementById("songProgress");
 const laneButtons = Array.from(document.querySelectorAll(".lane"));
 
@@ -54,9 +53,21 @@ let countdownTimers = [];
 let audio = null;
 let cueHideTimer = null;
 let feedbackHideTimer = null;
+let useSynthBgm = false;
+let bgmStep = 0;
+let nextBgmMs = 0;
 
 let audioCtx = null;
 let masterGain = null;
+
+const BGM_TEMPO = 108;
+const BGM_STEP_MS = (60_000 / BGM_TEMPO) / 2;
+const BGM_PATTERN = [
+  440.0, 493.88, 523.25, 587.33,
+  659.25, 587.33, 523.25, 493.88,
+  440.0, 523.25, 587.33, 659.25,
+  698.46, 659.25, 587.33, 523.25,
+];
 
 function createAudioForChart() {
   if (audio) {
@@ -179,6 +190,9 @@ function resetGameState() {
     audio.pause();
     audio.currentTime = 0;
   }
+  useSynthBgm = false;
+  bgmStep = 0;
+  nextBgmMs = 0;
 
   chart = buildChartFromConfig();
   notesLayer.innerHTML = "";
@@ -216,13 +230,20 @@ function startMainLoop() {
   gameRunning = true;
   progressEl.textContent = "Playing";
   playStartCue();
+  useSynthBgm = false;
+  bgmStep = 0;
+  nextBgmMs = 0;
 
   if (audio) {
     audio.currentTime = 0;
     audio.play().catch((err) => {
       console.warn("audio play failed", err);
-      progressEl.textContent = "Audio blocked by browser";
+      useSynthBgm = true;
+      progressEl.textContent = "Playing (synth BGM)";
     });
+  } else {
+    useSynthBgm = true;
+    progressEl.textContent = "Playing (synth BGM)";
   }
 
   loop();
@@ -260,6 +281,7 @@ function stopGame() {
   progressEl.textContent = "Finished";
   if (rafId) cancelAnimationFrame(rafId);
   if (audio) audio.pause();
+  useSynthBgm = false;
   playEndCue();
 }
 
@@ -374,10 +396,24 @@ function updateNotes(nowMs) {
   }
 }
 
+function tickSynthBgm(nowMs) {
+  if (!useSynthBgm) return;
+  while (nowMs >= nextBgmMs) {
+    const freq = BGM_PATTERN[bgmStep % BGM_PATTERN.length];
+    playTone(freq, 130, "triangle", 0.35);
+    if (bgmStep % 4 === 0) {
+      playTone(freq / 2, 110, "sine", 0.18);
+    }
+    bgmStep += 1;
+    nextBgmMs += BGM_STEP_MS;
+  }
+}
+
 function loop() {
   if (!gameRunning) return;
 
   const now = performance.now() - startedAt;
+  tickSynthBgm(now);
   updateNotes(now);
 
   const sec = Math.min(chartConfig.lengthSec, now / 1000);
@@ -412,10 +448,10 @@ laneButtons.forEach((lane, i) => {
   });
 });
 
-startBtn.addEventListener("click", startGame);
-restartBtn.addEventListener("click", () => {
+startBtn.addEventListener("click", () => {
   if (rafId) cancelAnimationFrame(rafId);
   resetGameState();
+  startGame();
 });
 
 window.addEventListener("resize", () => {
