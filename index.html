@@ -22,11 +22,6 @@
         <div><span class="label">Combo</span><span id="combo">0</span></div>
         <div><span class="label">Judge</span><span id="judge">-</span></div>
         <div><span class="label">Song</span><span id="songTitle">Loading...</span></div>
-        <div class="gauge-box">
-          <span class="label">Life Gauge</span>
-          <div class="gauge-track"><div id="gaugeFill" class="gauge-fill"></div></div>
-          <span id="gaugeValue">30%</span>
-        </div>
       </div>
     </header>
 
@@ -62,7 +57,6 @@
             <p id="resultState" class="result-state">CLEAR!</p>
             <p id="resultRank" class="result-rank">RANK A</p>
             <p id="resultScore" class="result-score">SCORE 0</p>
-            <p id="resultGauge" class="result-meta">GAUGE 0%</p>
             <p id="resultAcc" class="result-meta">ACCURACY 0%</p>
           </div>
         </div>
@@ -89,7 +83,12 @@
         <input id="timingRange" type="range" min="-300" max="300" step="10" value="0" />
         <span id="timingValue">0</span>
       </div>
-      <p class="settings-hint">`[` で -20ms / `]` で +20ms</p>
+      <label for="judgeLineRange">Judge Line Y</label>
+      <div class="speed-row">
+        <input id="judgeLineRange" type="range" min="70" max="180" step="5" value="110" />
+        <span id="judgeLineValue">110</span>
+      </div>
+      <p class="settings-hint">`[` で -20ms / `]` で +20ms，`-` / `=` で判定ライン上下</p>
       <button id="closeSettingsBtn">CLOSE</button>
     </div>
   </div>

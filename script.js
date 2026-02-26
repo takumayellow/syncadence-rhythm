@@ -54,8 +54,6 @@ const FALLBACK_CHART = {
 const scoreEl = document.getElementById("score");
 const comboEl = document.getElementById("combo");
 const judgeEl = document.getElementById("judge");
-const gaugeFillEl = document.getElementById("gaugeFill");
-const gaugeValueEl = document.getElementById("gaugeValue");
 const songTitleEl = document.getElementById("songTitle");
 const notesLayer = document.getElementById("notes-layer");
 const playfield = document.getElementById("playfield");
@@ -69,12 +67,13 @@ const speedRangeEl = document.getElementById("speedRange");
 const speedValueEl = document.getElementById("speedValue");
 const timingRangeEl = document.getElementById("timingRange");
 const timingValueEl = document.getElementById("timingValue");
+const judgeLineRangeEl = document.getElementById("judgeLineRange");
+const judgeLineValueEl = document.getElementById("judgeLineValue");
 const progressEl = document.getElementById("songProgress");
 const resultOverlayEl = document.getElementById("resultOverlay");
 const resultStateEl = document.getElementById("resultState");
 const resultRankEl = document.getElementById("resultRank");
 const resultScoreEl = document.getElementById("resultScore");
-const resultGaugeEl = document.getElementById("resultGauge");
 const resultAccEl = document.getElementById("resultAcc");
 const laneButtons = Array.from(document.querySelectorAll(".lane"));
 const laneVisuals = Array.from(document.querySelectorAll("[data-lane-visual]"));
@@ -98,7 +97,7 @@ const lanePressed = [false, false, false, false];
 let triedAudioFallbackUrl = false;
 let noteSpeed = 10.5;
 let timingOffsetMs = 0;
-let lifeGauge = 30;
+let judgeLineOffsetPx = 110;
 let achievedPoints = 0;
 let possiblePoints = 0;
 let missCount = 0;
@@ -142,15 +141,23 @@ function loadSettings() {
   if (Number.isFinite(savedTiming) && savedTiming >= -300 && savedTiming <= 300) {
     timingOffsetMs = savedTiming;
   }
+  const savedJudgeLine = Number(localStorage.getItem("pjsk_judge_line_px"));
+  if (Number.isFinite(savedJudgeLine) && savedJudgeLine >= 70 && savedJudgeLine <= 180) {
+    judgeLineOffsetPx = savedJudgeLine;
+  }
   speedRangeEl.value = String(noteSpeed);
   speedValueEl.textContent = noteSpeed.toFixed(1);
   timingRangeEl.value = String(timingOffsetMs);
   timingValueEl.textContent = String(Math.round(timingOffsetMs));
+  judgeLineRangeEl.value = String(judgeLineOffsetPx);
+  judgeLineValueEl.textContent = String(Math.round(judgeLineOffsetPx));
+  playfield.style.setProperty("--judge-line-bottom", `${judgeLineOffsetPx}px`);
 }
 
 function saveSettings() {
   localStorage.setItem("pjsk_note_speed", String(noteSpeed));
   localStorage.setItem("pjsk_timing_offset_ms", String(Math.round(timingOffsetMs)));
+  localStorage.setItem("pjsk_judge_line_px", String(Math.round(judgeLineOffsetPx)));
 }
 
 function getApproachMs() {
@@ -286,12 +293,10 @@ function resetGameState() {
 
   score = 0;
   combo = 0;
-  lifeGauge = 30;
   achievedPoints = 0;
   missCount = 0;
   possiblePoints = chart.reduce((sum, n) => sum + (n.durationMs > 0 ? 1200 : 1000), 0);
   updateScoreUI();
-  updateGaugeUI();
   setJudge("-");
   hitFeedbackEl.classList.add("hidden");
   resultOverlayEl.classList.add("hidden");
@@ -311,21 +316,6 @@ function setJudge(judge) {
     judgeEl.classList.add(`judge-${judge}`);
   }
   judgeEl.textContent = judge === "-" ? "-" : judge.toUpperCase();
-}
-
-function updateGaugeUI() {
-  const clamped = Math.max(0, Math.min(100, lifeGauge));
-  gaugeFillEl.style.width = `${clamped}%`;
-  gaugeValueEl.textContent = `${Math.round(clamped)}%`;
-}
-
-function updateLifeByJudge(judge, isHoldEnd = false) {
-  if (judge === "perfect") lifeGauge += isHoldEnd ? 3.2 : 2.4;
-  else if (judge === "great") lifeGauge += isHoldEnd ? 2.1 : 1.4;
-  else if (judge === "good") lifeGauge += isHoldEnd ? 1.0 : 0.4;
-  else lifeGauge -= isHoldEnd ? 8 : 5.5;
-  lifeGauge = Math.max(0, Math.min(100, lifeGauge));
-  updateGaugeUI();
 }
 
 function clearCountdown() {
@@ -432,7 +422,6 @@ function applyJudge(note, judge) {
   else if (judge === "great") achievedPoints += 800;
   else if (judge === "good") achievedPoints += 550;
   else missCount += 1;
-  updateLifeByJudge(judge, false);
 
   if (judge === "miss") {
     combo = 0;
@@ -463,13 +452,11 @@ function finishHoldNote(note, success) {
     combo += 1;
     score += 1200 + combo * 10;
     achievedPoints += 1200;
-    updateLifeByJudge("perfect", true);
   } else {
     setJudge("miss");
     showHitFeedback("miss");
     combo = 0;
     missCount += 1;
-    updateLifeByJudge("miss", true);
   }
 
   updateScoreUI();
@@ -480,7 +467,6 @@ function applyEmptyHitMiss() {
   showHitFeedback("miss");
   combo = 0;
   missCount += 1;
-  updateLifeByJudge("miss", false);
   updateScoreUI();
 }
 
@@ -539,7 +525,7 @@ function laneCenterAtDepth(lane, depth) {
 
 function updateNotes(nowMs) {
   const farY = 55;
-  const judgeLineY = playfield.clientHeight - 110;
+  const judgeLineY = playfield.clientHeight - judgeLineOffsetPx;
   const approachMs = getApproachMs();
   const maxAhead = approachMs + 650;
 
@@ -723,13 +709,12 @@ function calcRank(accPercent) {
 
 function showResultOverlay() {
   const acc = possiblePoints > 0 ? (achievedPoints / possiblePoints) * 100 : 0;
-  const clear = lifeGauge >= 70 && missCount < Math.max(24, Math.floor(chart.length * 0.18));
+  const clear = acc >= 72 && missCount < Math.max(30, Math.floor(chart.length * 0.22));
   const rank = calcRank(acc);
 
   resultStateEl.textContent = clear ? "CLEAR!" : "FAILED";
   resultRankEl.textContent = `RANK ${rank}`;
   resultScoreEl.textContent = `SCORE ${score}`;
-  resultGaugeEl.textContent = `GAUGE ${Math.round(lifeGauge)}%`;
   resultAccEl.textContent = `ACCURACY ${acc.toFixed(1)}%`;
   resultStateEl.style.color = clear ? "#8dffbf" : "#ff8b8b";
 
@@ -741,6 +726,14 @@ function setTimingOffset(next) {
   timingOffsetMs = Math.max(-300, Math.min(300, Math.round(next)));
   timingRangeEl.value = String(timingOffsetMs);
   timingValueEl.textContent = String(timingOffsetMs);
+  saveSettings();
+}
+
+function setJudgeLineOffset(next) {
+  judgeLineOffsetPx = Math.max(70, Math.min(180, Math.round(next)));
+  judgeLineRangeEl.value = String(judgeLineOffsetPx);
+  judgeLineValueEl.textContent = String(judgeLineOffsetPx);
+  playfield.style.setProperty("--judge-line-bottom", `${judgeLineOffsetPx}px`);
   saveSettings();
 }
 
@@ -777,6 +770,12 @@ document.addEventListener("keyup", (event) => {
   }
   if (event.code === "BracketRight") {
     setTimingOffset(timingOffsetMs + 20);
+  }
+  if (event.code === "Minus") {
+    setJudgeLineOffset(judgeLineOffsetPx - 5);
+  }
+  if (event.code === "Equal") {
+    setJudgeLineOffset(judgeLineOffsetPx + 5);
   }
   if (event.code === "Escape") {
     closeSettings();
@@ -821,6 +820,9 @@ speedRangeEl.addEventListener("input", () => {
 });
 timingRangeEl.addEventListener("input", () => {
   setTimingOffset(Number(timingRangeEl.value));
+});
+judgeLineRangeEl.addEventListener("input", () => {
+  setJudgeLineOffset(Number(judgeLineRangeEl.value));
 });
 
 window.addEventListener("resize", () => {
