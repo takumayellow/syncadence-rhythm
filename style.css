@@ -203,11 +203,15 @@ body {
   background: transparent;
   cursor: pointer;
   transition: background 80ms ease;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
 }
 
 .lane:active,
 .lane.active {
-  background: rgba(255,255,255,0.14);
+  background: transparent;
 }
 
 .judge-line {
@@ -247,6 +251,7 @@ body {
     linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0.08) 22%, rgba(0,0,0,0.06) 100%),
     linear-gradient(180deg, #69ffe2, #14b6ff);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.38), inset 0 0 0 1px rgba(255,255,255,0.24);
+  transform-origin: top left;
 }
 
 .cue {
@@ -351,6 +356,12 @@ button.primary {
   min-width: 44px;
   text-align: right;
   font: 700 1rem "Kanit", sans-serif;
+}
+
+.settings-hint {
+  margin: 0 0 14px;
+  opacity: 0.8;
+  font-size: 0.86rem;
 }
 
 .judge-perfect { color: var(--perfect); }

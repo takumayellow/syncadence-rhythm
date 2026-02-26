@@ -65,6 +65,8 @@ const settingsPanelEl = document.getElementById("settingsPanel");
 const closeSettingsBtn = document.getElementById("closeSettingsBtn");
 const speedRangeEl = document.getElementById("speedRange");
 const speedValueEl = document.getElementById("speedValue");
+const timingRangeEl = document.getElementById("timingRange");
+const timingValueEl = document.getElementById("timingValue");
 const progressEl = document.getElementById("songProgress");
 const laneButtons = Array.from(document.querySelectorAll(".lane"));
 const laneVisuals = Array.from(document.querySelectorAll("[data-lane-visual]"));
@@ -87,6 +89,7 @@ const laneFlashTokens = [0, 0, 0, 0];
 const lanePressed = [false, false, false, false];
 let triedAudioFallbackUrl = false;
 let noteSpeed = 10.5;
+let timingOffsetMs = 0;
 
 let audioCtx = null;
 let masterGain = null;
@@ -123,12 +126,19 @@ function loadSettings() {
   if (Number.isFinite(saved) && saved >= 6 && saved <= 12) {
     noteSpeed = saved;
   }
+  const savedTiming = Number(localStorage.getItem("pjsk_timing_offset_ms"));
+  if (Number.isFinite(savedTiming) && savedTiming >= -300 && savedTiming <= 300) {
+    timingOffsetMs = savedTiming;
+  }
   speedRangeEl.value = String(noteSpeed);
   speedValueEl.textContent = noteSpeed.toFixed(1);
+  timingRangeEl.value = String(timingOffsetMs);
+  timingValueEl.textContent = String(Math.round(timingOffsetMs));
 }
 
 function saveSettings() {
   localStorage.setItem("pjsk_note_speed", String(noteSpeed));
+  localStorage.setItem("pjsk_timing_offset_ms", String(Math.round(timingOffsetMs)));
 }
 
 function getApproachMs() {
@@ -521,22 +531,46 @@ function updateNotes(nowMs) {
     const yTail = farY + (judgeLineY - farY) * depthTail;
 
     const scaleHead = 0.58 + depthHead * 1.2;
+    const scaleTail = 0.58 + depthTail * 1.2;
     const noteWHead = NOTE_BASE_WIDTH * scaleHead;
+    const noteHTail = 26 * scaleTail;
     const noteHHead = 26 * scaleHead;
+    const noteWTail = NOTE_BASE_WIDTH * scaleTail;
     const xHead = laneCenterAtDepth(note.lane, depthHead) - noteWHead / 2;
+    const xTail = laneCenterAtDepth(note.lane, depthTail) - noteWTail / 2;
+    const yHeadTop = yHead - noteHHead / 2;
+    const yHeadBottom = yHead + noteHHead / 2;
+    const yTailTop = yTail - noteHTail / 2;
     const skew = (note.lane - 1.5) * -1.8 * (1 - depthHead);
 
     if (note.element) {
       let drawX = xHead;
-      let drawY = yHead - noteHHead / 2;
+      let drawY = yHeadTop;
       let drawW = noteWHead;
       let drawH = noteHHead;
+      let drawClip = "";
+      let drawTransform = `skewX(${skew.toFixed(2)}deg)`;
 
       if (note.durationMs > 0) {
-        const top = Math.min(yHead, yTail);
-        const bottom = Math.max(yHead, yTail);
-        drawY = top - noteHHead * 0.45;
-        drawH = Math.max(noteHHead, (bottom - top) + noteHHead * 0.9);
+        const left = Math.min(xHead, xTail);
+        const right = Math.max(xHead + noteWHead, xTail + noteWTail);
+        const top = Math.min(yTailTop, yHeadTop);
+        const bottom = Math.max(yHeadBottom, yTailTop + noteHTail);
+        drawX = left;
+        drawY = top;
+        drawW = right - left;
+        drawH = Math.max(noteHHead, bottom - top);
+
+        const p1x = ((xTail - left) / drawW) * 100;
+        const p2x = ((xTail + noteWTail - left) / drawW) * 100;
+        const p3x = ((xHead + noteWHead - left) / drawW) * 100;
+        const p4x = ((xHead - left) / drawW) * 100;
+        const p1y = ((yTailTop - top) / drawH) * 100;
+        const p2y = p1y;
+        const p3y = ((yHeadBottom - top) / drawH) * 100;
+        const p4y = p3y;
+        drawClip = `polygon(${p1x}% ${p1y}%, ${p2x}% ${p2y}%, ${p3x}% ${p3y}%, ${p4x}% ${p4y}%)`;
+        drawTransform = "none";
         note.element.classList.add("long-note");
       } else {
         note.element.classList.remove("long-note");
@@ -550,6 +584,7 @@ function updateNotes(nowMs) {
         skew.toFixed(2),
         (0.55 + depthHead * 0.45).toFixed(2),
         note.durationMs > 0 ? "L" : "T",
+        drawClip,
       ].join("|");
 
       if (styleKey !== note.lastStyleKey) {
@@ -559,7 +594,8 @@ function updateNotes(nowMs) {
         note.element.style.top = `${drawY}px`;
         note.element.style.width = `${drawW}px`;
         note.element.style.height = `${drawH}px`;
-        note.element.style.transform = `skewX(${skew.toFixed(2)}deg)`;
+        note.element.style.transform = drawTransform;
+        note.element.style.clipPath = drawClip || "none";
         note.element.style.opacity = String(0.55 + depthHead * 0.45);
       }
     }
@@ -597,9 +633,9 @@ function tickSynthBgm(nowMs) {
 
 function getSongTimeMs() {
   if (audio && !useSynthBgm && !audio.paused && Number.isFinite(audio.currentTime)) {
-    return audio.currentTime * 1000;
+    return audio.currentTime * 1000 + timingOffsetMs;
   }
-  return performance.now() - startedAt;
+  return performance.now() - startedAt + timingOffsetMs;
 }
 
 function loop() {
@@ -631,6 +667,13 @@ function closeSettings() {
   settingsPanelEl.setAttribute("aria-hidden", "true");
 }
 
+function setTimingOffset(next) {
+  timingOffsetMs = Math.max(-300, Math.min(300, Math.round(next)));
+  timingRangeEl.value = String(timingOffsetMs);
+  timingValueEl.textContent = String(timingOffsetMs);
+  saveSettings();
+}
+
 function flashLane(index) {
   const lane = laneVisuals[index];
   if (!lane) return;
@@ -659,6 +702,12 @@ document.addEventListener("keydown", (event) => {
 });
 
 document.addEventListener("keyup", (event) => {
+  if (event.code === "BracketLeft") {
+    setTimingOffset(timingOffsetMs - 20);
+  }
+  if (event.code === "BracketRight") {
+    setTimingOffset(timingOffsetMs + 20);
+  }
   if (event.code === "Escape") {
     closeSettings();
   }
@@ -699,6 +748,9 @@ speedRangeEl.addEventListener("input", () => {
   noteSpeed = Number(speedRangeEl.value);
   speedValueEl.textContent = noteSpeed.toFixed(1);
   saveSettings();
+});
+timingRangeEl.addEventListener("input", () => {
+  setTimingOffset(Number(timingRangeEl.value));
 });
 
 window.addEventListener("resize", () => {
