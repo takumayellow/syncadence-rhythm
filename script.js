@@ -2,6 +2,7 @@ const LANE_COUNT = 4;
 const HIT_KEYS = ["KeyD", "KeyF", "KeyJ", "KeyK"];
 const BASE_APPROACH_MS = 2100;
 const NOTE_BASE_WIDTH = 118;
+const COUNTDOWN_MS = 2100;
 
 const JUDGE_WINDOWS = {
   perfect: 45,
@@ -296,6 +297,24 @@ function startMainLoop() {
   bgmStep = 0;
   nextBgmMs = 0;
 
+  if (audio) {
+    audio.currentTime = 0;
+    audio.play().catch(() => {
+      if (switchToFallbackAudioUrl()) {
+        audio.play().catch(() => {
+          useSynthBgm = true;
+          progressEl.textContent = "Playing (synth BGM)";
+        });
+      } else {
+        useSynthBgm = true;
+        progressEl.textContent = "Playing (synth BGM)";
+      }
+    });
+  } else {
+    useSynthBgm = true;
+    progressEl.textContent = "Playing (synth BGM)";
+  }
+
   loop();
 }
 
@@ -311,24 +330,14 @@ function startGame() {
 
   if (audio) {
     audio.currentTime = 0;
-    audio.play().catch((err) => {
-      console.warn("audio start failed", err);
-      if (switchToFallbackAudioUrl()) {
-        audio.play().then(() => {
-          useSynthBgm = false;
-          progressEl.textContent = "Playing (fallback audio)";
-        }).catch(() => {
-          useSynthBgm = true;
-          progressEl.textContent = "Playing (synth BGM)";
-        });
-      } else {
-        useSynthBgm = true;
-        progressEl.textContent = "Playing (synth BGM)";
-      }
+    audio.muted = true;
+    audio.play().then(() => {
+      audio.pause();
+      audio.currentTime = 0;
+      audio.muted = false;
+    }).catch(() => {
+      audio.muted = false;
     });
-  } else {
-    useSynthBgm = true;
-    progressEl.textContent = "Playing (synth BGM)";
   }
 
   showCue("3", 650);
@@ -347,7 +356,7 @@ function startGame() {
   countdownTimers.push(setTimeout(() => {
     clearCountdown();
     startMainLoop();
-  }, 2100));
+  }, COUNTDOWN_MS));
 }
 
 function stopGame() {
