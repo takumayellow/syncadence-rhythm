@@ -82,6 +82,27 @@ body {
   backdrop-filter: blur(2px);
 }
 
+.gauge-box {
+  min-width: 210px;
+}
+
+.gauge-track {
+  margin-top: 4px;
+  width: 190px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.15);
+  overflow: hidden;
+}
+
+.gauge-fill {
+  width: 30%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #ff6a6a, #ffd166 45%, #49f2ad);
+  transition: width 120ms linear;
+}
+
 .label {
   display: block;
   opacity: 0.72;
@@ -285,6 +306,51 @@ body {
 .hit-feedback.hidden {
   opacity: 0;
   transform: translate(-50%, 8px) scale(0.95);
+}
+
+.result-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  background: rgba(4, 7, 18, 0.68);
+  backdrop-filter: blur(2px);
+  display: grid;
+  place-items: center;
+}
+
+.result-overlay.hidden {
+  display: none;
+}
+
+.result-card {
+  width: min(430px, 86vw);
+  text-align: center;
+  padding: 22px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: linear-gradient(180deg, rgba(16,28,60,0.95), rgba(11,18,37,0.95));
+  box-shadow: 0 14px 30px rgba(0,0,0,0.45);
+}
+
+.result-state {
+  margin: 0;
+  font: 700 2.1rem "Kanit", sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.result-rank {
+  margin: 4px 0 0;
+  font: 700 1.7rem "Kanit", sans-serif;
+}
+
+.result-score {
+  margin: 8px 0 0;
+  font: 700 1.2rem "Kanit", sans-serif;
+}
+
+.result-meta {
+  margin: 2px 0 0;
+  opacity: 0.9;
 }
 
 .controls {

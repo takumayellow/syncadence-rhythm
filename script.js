@@ -54,6 +54,8 @@ const FALLBACK_CHART = {
 const scoreEl = document.getElementById("score");
 const comboEl = document.getElementById("combo");
 const judgeEl = document.getElementById("judge");
+const gaugeFillEl = document.getElementById("gaugeFill");
+const gaugeValueEl = document.getElementById("gaugeValue");
 const songTitleEl = document.getElementById("songTitle");
 const notesLayer = document.getElementById("notes-layer");
 const playfield = document.getElementById("playfield");
@@ -68,6 +70,12 @@ const speedValueEl = document.getElementById("speedValue");
 const timingRangeEl = document.getElementById("timingRange");
 const timingValueEl = document.getElementById("timingValue");
 const progressEl = document.getElementById("songProgress");
+const resultOverlayEl = document.getElementById("resultOverlay");
+const resultStateEl = document.getElementById("resultState");
+const resultRankEl = document.getElementById("resultRank");
+const resultScoreEl = document.getElementById("resultScore");
+const resultGaugeEl = document.getElementById("resultGauge");
+const resultAccEl = document.getElementById("resultAcc");
 const laneButtons = Array.from(document.querySelectorAll(".lane"));
 const laneVisuals = Array.from(document.querySelectorAll("[data-lane-visual]"));
 
@@ -90,6 +98,10 @@ const lanePressed = [false, false, false, false];
 let triedAudioFallbackUrl = false;
 let noteSpeed = 10.5;
 let timingOffsetMs = 0;
+let lifeGauge = 30;
+let achievedPoints = 0;
+let possiblePoints = 0;
+let missCount = 0;
 
 let audioCtx = null;
 let masterGain = null;
@@ -274,9 +286,16 @@ function resetGameState() {
 
   score = 0;
   combo = 0;
+  lifeGauge = 30;
+  achievedPoints = 0;
+  missCount = 0;
+  possiblePoints = chart.reduce((sum, n) => sum + (n.durationMs > 0 ? 1200 : 1000), 0);
   updateScoreUI();
+  updateGaugeUI();
   setJudge("-");
   hitFeedbackEl.classList.add("hidden");
+  resultOverlayEl.classList.add("hidden");
+  resultOverlayEl.setAttribute("aria-hidden", "true");
   progressEl.textContent = "Ready";
   gameRunning = false;
 }
@@ -292,6 +311,21 @@ function setJudge(judge) {
     judgeEl.classList.add(`judge-${judge}`);
   }
   judgeEl.textContent = judge === "-" ? "-" : judge.toUpperCase();
+}
+
+function updateGaugeUI() {
+  const clamped = Math.max(0, Math.min(100, lifeGauge));
+  gaugeFillEl.style.width = `${clamped}%`;
+  gaugeValueEl.textContent = `${Math.round(clamped)}%`;
+}
+
+function updateLifeByJudge(judge, isHoldEnd = false) {
+  if (judge === "perfect") lifeGauge += isHoldEnd ? 3.2 : 2.4;
+  else if (judge === "great") lifeGauge += isHoldEnd ? 2.1 : 1.4;
+  else if (judge === "good") lifeGauge += isHoldEnd ? 1.0 : 0.4;
+  else lifeGauge -= isHoldEnd ? 8 : 5.5;
+  lifeGauge = Math.max(0, Math.min(100, lifeGauge));
+  updateGaugeUI();
 }
 
 function clearCountdown() {
@@ -376,6 +410,7 @@ function stopGame() {
   if (audio) audio.pause();
   useSynthBgm = false;
   playEndCue();
+  showResultOverlay();
 }
 
 function judgeDelta(deltaAbs) {
@@ -393,6 +428,11 @@ function applyJudge(note, judge) {
   setJudge(judge);
   showHitFeedback(judge);
   score += scoreMap[judge];
+  if (judge === "perfect") achievedPoints += 1000;
+  else if (judge === "great") achievedPoints += 800;
+  else if (judge === "good") achievedPoints += 550;
+  else missCount += 1;
+  updateLifeByJudge(judge, false);
 
   if (judge === "miss") {
     combo = 0;
@@ -422,10 +462,14 @@ function finishHoldNote(note, success) {
     showHitFeedback("perfect");
     combo += 1;
     score += 1200 + combo * 10;
+    achievedPoints += 1200;
+    updateLifeByJudge("perfect", true);
   } else {
     setJudge("miss");
     showHitFeedback("miss");
     combo = 0;
+    missCount += 1;
+    updateLifeByJudge("miss", true);
   }
 
   updateScoreUI();
@@ -435,6 +479,8 @@ function applyEmptyHitMiss() {
   setJudge("miss");
   showHitFeedback("miss");
   combo = 0;
+  missCount += 1;
+  updateLifeByJudge("miss", false);
   updateScoreUI();
 }
 
@@ -665,6 +711,30 @@ function openSettings() {
 function closeSettings() {
   settingsPanelEl.classList.add("hidden");
   settingsPanelEl.setAttribute("aria-hidden", "true");
+}
+
+function calcRank(accPercent) {
+  if (accPercent >= 95) return "S";
+  if (accPercent >= 88) return "A";
+  if (accPercent >= 78) return "B";
+  if (accPercent >= 66) return "C";
+  return "D";
+}
+
+function showResultOverlay() {
+  const acc = possiblePoints > 0 ? (achievedPoints / possiblePoints) * 100 : 0;
+  const clear = lifeGauge >= 70 && missCount < Math.max(24, Math.floor(chart.length * 0.18));
+  const rank = calcRank(acc);
+
+  resultStateEl.textContent = clear ? "CLEAR!" : "FAILED";
+  resultRankEl.textContent = `RANK ${rank}`;
+  resultScoreEl.textContent = `SCORE ${score}`;
+  resultGaugeEl.textContent = `GAUGE ${Math.round(lifeGauge)}%`;
+  resultAccEl.textContent = `ACCURACY ${acc.toFixed(1)}%`;
+  resultStateEl.style.color = clear ? "#8dffbf" : "#ff8b8b";
+
+  resultOverlayEl.classList.remove("hidden");
+  resultOverlayEl.setAttribute("aria-hidden", "false");
 }
 
 function setTimingOffset(next) {

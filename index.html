@@ -22,6 +22,11 @@
         <div><span class="label">Combo</span><span id="combo">0</span></div>
         <div><span class="label">Judge</span><span id="judge">-</span></div>
         <div><span class="label">Song</span><span id="songTitle">Loading...</span></div>
+        <div class="gauge-box">
+          <span class="label">Life Gauge</span>
+          <div class="gauge-track"><div id="gaugeFill" class="gauge-fill"></div></div>
+          <span id="gaugeValue">30%</span>
+        </div>
       </div>
     </header>
 
@@ -52,6 +57,15 @@
           <button class="lane" data-lane="3" aria-label="lane 4"></button>
         </div>
         <div id="notes-layer"></div>
+        <div id="resultOverlay" class="result-overlay hidden" aria-hidden="true">
+          <div class="result-card">
+            <p id="resultState" class="result-state">CLEAR!</p>
+            <p id="resultRank" class="result-rank">RANK A</p>
+            <p id="resultScore" class="result-score">SCORE 0</p>
+            <p id="resultGauge" class="result-meta">GAUGE 0%</p>
+            <p id="resultAcc" class="result-meta">ACCURACY 0%</p>
+          </div>
+        </div>
       </div>
     </section>
 
