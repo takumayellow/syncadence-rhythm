@@ -121,6 +121,43 @@ body {
     linear-gradient(180deg, rgba(161, 224, 255, 0.12), rgba(32, 39, 94, 0.28) 35%, rgba(10, 14, 30, 0.44));
 }
 
+.track-perspective {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.lane-fill {
+  opacity: 0.32;
+  transition: fill 80ms ease, opacity 80ms ease;
+}
+
+.lane-fill-1,
+.lane-fill-3 {
+  fill: rgba(83, 228, 255, 0.22);
+}
+
+.lane-fill-2,
+.lane-fill-4 {
+  fill: rgba(255, 123, 180, 0.2);
+}
+
+.lane-sep {
+  stroke: rgba(255, 255, 255, 0.72);
+  stroke-width: 0.42;
+}
+
+.lane-sep.outer {
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 0.56;
+}
+
+.lane-fill.active {
+  fill: rgba(255, 255, 255, 0.48);
+  opacity: 0.9;
+}
+
 .track-grid {
   position: absolute;
   inset: 0;
@@ -132,19 +169,10 @@ body {
       transparent 1px,
       transparent 22px
     ),
-    linear-gradient(
-      to right,
-      transparent 0 24.7%,
-      rgba(255, 255, 255, 0.6) 24.7% 25.3%,
-      transparent 25.3% 49.7%,
-      rgba(255, 255, 255, 0.6) 49.7% 50.3%,
-      transparent 50.3% 74.7%,
-      rgba(255, 255, 255, 0.6) 74.7% 75.3%,
-      transparent 75.2% 100%
-    );
+    linear-gradient(to right, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07));
   transform-origin: top center;
   transform: perspective(900px) rotateX(7deg);
-  opacity: 0.45;
+  opacity: 0.3;
   animation: trackFlow 1.6s linear infinite;
 }
 
@@ -172,32 +200,14 @@ body {
 
 .lane {
   border: none;
-  border-left: 2px solid rgba(255, 255, 255, 0.42);
-  border-right: 2px solid rgba(255, 255, 255, 0.42);
-  background: rgba(255, 255, 255, 0.06);
+  background: transparent;
   cursor: pointer;
   transition: background 80ms ease;
 }
 
-.lane:nth-child(odd) {
-  background: rgba(120, 210, 255, 0.08);
-}
-
-.lane:nth-child(even) {
-  background: rgba(255, 120, 188, 0.07);
-}
-
-.lane:first-child {
-  border-left-color: rgba(255, 255, 255, 0.62);
-}
-
-.lane:last-child {
-  border-right-color: rgba(255, 255, 255, 0.62);
-}
-
 .lane:active,
 .lane.active {
-  background: rgba(255,255,255,0.24);
+  background: rgba(255,255,255,0.14);
 }
 
 .judge-line {

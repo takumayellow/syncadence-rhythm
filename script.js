@@ -16,18 +16,36 @@ const scoreMap = {
   miss: 0,
 };
 
+function buildDefaultLongNotes(offsetMs, lengthSec, bpm) {
+  const notes = [];
+  const stepMs = Math.round((60_000 / bpm) / 2);
+  const lanesPattern = [0, 1, 2, 3, 2, 1, 0, 2, 1, 3, 2, 0, 1, 2, 3, 1];
+  let time = offsetMs;
+  let i = 0;
+  while (time < lengthSec * 1000 - 400) {
+    notes.push({ time, lane: lanesPattern[i % lanesPattern.length] });
+    if (i % 16 === 15) {
+      time += stepMs * 2;
+    } else if (i % 7 === 0) {
+      time += Math.round(stepMs * 1.5);
+    } else {
+      time += stepMs;
+    }
+    i += 1;
+  }
+  return notes;
+}
+
 const FALLBACK_CHART = {
-  title: "Offline Demo Chart",
-  artist: "Local",
-  audioUrl: "",
-  license: "-",
-  offsetMs: 1800,
-  bpm: 120,
-  lengthSec: 30,
-  notes: Array.from({ length: 90 }).map((_, i) => ({
-    time: 1800 + i * 320,
-    lane: [0, 1, 2, 1, 3, 2][i % 6],
-  })),
+  title: "Chopin Nocturne Op.9 No.2 (Built-in)",
+  artist: "Frederic Chopin",
+  audioUrl: "assets/audio/Chopin_Nocturne_Op_9_No_2.ogg",
+  audioFallbackUrl: "assets/audio/Chopin_Nocturne_Op_9_No_2.ogg",
+  license: "Public domain composition / Wikimedia recording",
+  offsetMs: 2300,
+  bpm: 118,
+  lengthSec: 180,
+  notes: buildDefaultLongNotes(2300, 180, 118),
 };
 
 const scoreEl = document.getElementById("score");
@@ -41,6 +59,7 @@ const hitFeedbackEl = document.getElementById("hitFeedback");
 const startBtn = document.getElementById("startBtn");
 const progressEl = document.getElementById("songProgress");
 const laneButtons = Array.from(document.querySelectorAll(".lane"));
+const laneVisuals = Array.from(document.querySelectorAll("[data-lane-visual]"));
 
 let chartConfig = FALLBACK_CHART;
 let chart = [];
@@ -56,6 +75,8 @@ let feedbackHideTimer = null;
 let useSynthBgm = false;
 let bgmStep = 0;
 let nextBgmMs = 0;
+const laneFlashTokens = [0, 0, 0, 0];
+let triedAudioFallbackUrl = false;
 
 let audioCtx = null;
 let masterGain = null;
@@ -85,6 +106,15 @@ function createAudioForChart() {
       stopGame();
     }
   });
+}
+
+function switchToFallbackAudioUrl() {
+  if (!audio || triedAudioFallbackUrl) return false;
+  if (!chartConfig.audioFallbackUrl) return false;
+  triedAudioFallbackUrl = true;
+  audio.src = chartConfig.audioFallbackUrl;
+  audio.load();
+  return true;
 }
 
 function initAudio() {
@@ -160,7 +190,7 @@ async function loadChartConfig() {
     chartConfig = await res.json();
   } catch (err) {
     chartConfig = FALLBACK_CHART;
-    progressEl.textContent = "Chart load failed: fallback";
+    progressEl.textContent = "Chart load failed: built-in Chopin";
     console.warn(err);
   }
 
@@ -181,6 +211,7 @@ function buildChartFromConfig() {
     hitTime: n.time,
     judged: false,
     element: null,
+    lastStyleKey: "",
   }));
 }
 
@@ -190,6 +221,7 @@ function resetGameState() {
     audio.pause();
     audio.currentTime = 0;
   }
+  triedAudioFallbackUrl = false;
   useSynthBgm = false;
   bgmStep = 0;
   nextBgmMs = 0;
@@ -230,21 +262,8 @@ function startMainLoop() {
   gameRunning = true;
   progressEl.textContent = "Playing";
   playStartCue();
-  useSynthBgm = false;
   bgmStep = 0;
   nextBgmMs = 0;
-
-  if (audio) {
-    audio.currentTime = 0;
-    audio.play().catch((err) => {
-      console.warn("audio play failed", err);
-      useSynthBgm = true;
-      progressEl.textContent = "Playing (synth BGM)";
-    });
-  } else {
-    useSynthBgm = true;
-    progressEl.textContent = "Playing (synth BGM)";
-  }
 
   loop();
 }
@@ -255,6 +274,30 @@ function startGame() {
   initAudio();
   if (audioCtx && audioCtx.state === "suspended") {
     audioCtx.resume();
+  }
+
+  useSynthBgm = false;
+
+  if (audio) {
+    audio.currentTime = 0;
+    audio.play().catch((err) => {
+      console.warn("audio start failed", err);
+      if (switchToFallbackAudioUrl()) {
+        audio.play().then(() => {
+          useSynthBgm = false;
+          progressEl.textContent = "Playing (fallback audio)";
+        }).catch(() => {
+          useSynthBgm = true;
+          progressEl.textContent = "Playing (synth BGM)";
+        });
+      } else {
+        useSynthBgm = true;
+        progressEl.textContent = "Playing (synth BGM)";
+      }
+    });
+  } else {
+    useSynthBgm = true;
+    progressEl.textContent = "Playing (synth BGM)";
   }
 
   showCue("3", 650);
@@ -321,7 +364,7 @@ function applyEmptyHitMiss() {
 function pressLane(laneIndex) {
   if (!gameRunning) return;
 
-  const now = performance.now() - startedAt;
+  const now = getSongTimeMs();
   let best = null;
 
   for (const note of chart) {
@@ -366,11 +409,24 @@ function laneCenterAtDepth(lane, depth) {
 function updateNotes(nowMs) {
   const farY = 55;
   const judgeLineY = playfield.clientHeight - 110;
+  const maxAhead = APPROACH_MS + 650;
 
   for (const note of chart) {
     if (note.judged) continue;
 
     const dt = note.hitTime - nowMs;
+    if (dt > maxAhead) {
+      if (note.element && note.element.style.display !== "none") {
+        note.element.style.display = "none";
+      }
+      continue;
+    }
+
+    if (dt < -JUDGE_WINDOWS.miss) {
+      applyJudge(note, "miss");
+      continue;
+    }
+
     const linear = clamp01(1 - dt / APPROACH_MS);
     const depth = Math.pow(linear, 1.15);
     const y = farY + (judgeLineY - farY) * depth;
@@ -382,16 +438,25 @@ function updateNotes(nowMs) {
     const skew = (note.lane - 1.5) * -1.8 * (1 - depth);
 
     if (note.element) {
-      note.element.style.left = `${x}px`;
-      note.element.style.top = `${y - noteH / 2}px`;
-      note.element.style.width = `${noteW}px`;
-      note.element.style.height = `${noteH}px`;
-      note.element.style.transform = `skewX(${skew.toFixed(2)}deg)`;
-      note.element.style.opacity = String(0.55 + depth * 0.45);
-    }
+      const styleKey = [
+        x.toFixed(1),
+        (y - noteH / 2).toFixed(1),
+        noteW.toFixed(1),
+        noteH.toFixed(1),
+        skew.toFixed(2),
+        (0.55 + depth * 0.45).toFixed(2),
+      ].join("|");
 
-    if (dt < -JUDGE_WINDOWS.miss) {
-      applyJudge(note, "miss");
+      if (styleKey !== note.lastStyleKey) {
+        note.lastStyleKey = styleKey;
+        note.element.style.display = "block";
+        note.element.style.left = `${x}px`;
+        note.element.style.top = `${y - noteH / 2}px`;
+        note.element.style.width = `${noteW}px`;
+        note.element.style.height = `${noteH}px`;
+        note.element.style.transform = `skewX(${skew.toFixed(2)}deg)`;
+        note.element.style.opacity = String(0.55 + depth * 0.45);
+      }
     }
   }
 }
@@ -409,10 +474,17 @@ function tickSynthBgm(nowMs) {
   }
 }
 
+function getSongTimeMs() {
+  if (audio && !useSynthBgm && !audio.paused && Number.isFinite(audio.currentTime)) {
+    return audio.currentTime * 1000;
+  }
+  return performance.now() - startedAt;
+}
+
 function loop() {
   if (!gameRunning) return;
 
-  const now = performance.now() - startedAt;
+  const now = getSongTimeMs();
   tickSynthBgm(now);
   updateNotes(now);
 
@@ -428,10 +500,21 @@ function loop() {
 }
 
 function flashLane(index) {
-  const lane = laneButtons[index];
+  const lane = laneVisuals[index];
   if (!lane) return;
+
+  laneVisuals.forEach((vis, i) => {
+    if (i !== index) vis.classList.remove("active");
+  });
+
+  laneFlashTokens[index] += 1;
+  const token = laneFlashTokens[index];
   lane.classList.add("active");
-  setTimeout(() => lane.classList.remove("active"), 80);
+  setTimeout(() => {
+    if (laneFlashTokens[index] === token) {
+      lane.classList.remove("active");
+    }
+  }, 80);
 }
 
 document.addEventListener("keydown", (event) => {

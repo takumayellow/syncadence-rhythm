@@ -17,18 +17,20 @@
 - 空打ち時も`MISS`判定を表示
 - スコア，コンボ表示
 - JSON譜面読み込み（`charts/chopin_nocturne_easy.json`）
-- 公開音源URL再生（Wikimedia Commons）
+- 実クラシック音源を優先再生（Moonlight Sonata 1st，Wikimedia）
+- 実クラシック再生が失敗した場合はローカル音源（`assets/audio/classical_long_3min.wav`）へフォールバック
 - 公開音源が再生できない環境では，自動で内蔵シンセBGMにフォールバック
 - 開始カウントダウン（3，2，1）と開始/終了ジングル
 - 押下時は効果音なし，判定テキストのみ表示
 - 3D遠近レーン（奥から手前に迫る見た目）
+- 約3分の長尺プレイ（180秒，619ノーツ）
 - PCキーボード入力とモバイルタップの両対応
 
 ## 音源
 
-- タイトル: `Nocturne Op.9 No.2`
-- 提供元: Wikimedia Commons
-- ライセンス: CC BY-SA 3.0
+- ファイル: `assets/audio/classical_long_3min.wav`
+- 形式: 22.05kHz/16bit/mono WAV
+- ライセンス: プロジェクト内生成のフリー利用想定音源
 
 ## Git操作メモ
 

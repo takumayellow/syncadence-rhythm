@@ -30,6 +30,17 @@
         <div id="cueText" class="cue hidden">READY</div>
         <div id="hitFeedback" class="hit-feedback hidden">PERFECT</div>
         <div class="track-bg" aria-hidden="true">
+          <svg class="track-perspective" viewBox="0 0 100 100" preserveAspectRatio="none">
+            <polygon class="lane-fill lane-fill-1" data-lane-visual="0" points="0,100 25,100 38,8 26,8"></polygon>
+            <polygon class="lane-fill lane-fill-2" data-lane-visual="1" points="25,100 50,100 50,8 38,8"></polygon>
+            <polygon class="lane-fill lane-fill-3" data-lane-visual="2" points="50,100 75,100 62,8 50,8"></polygon>
+            <polygon class="lane-fill lane-fill-4" data-lane-visual="3" points="75,100 100,100 74,8 62,8"></polygon>
+            <line class="lane-sep outer" x1="0" y1="100" x2="26" y2="8"></line>
+            <line class="lane-sep" x1="25" y1="100" x2="38" y2="8"></line>
+            <line class="lane-sep" x1="50" y1="100" x2="50" y2="8"></line>
+            <line class="lane-sep" x1="75" y1="100" x2="62" y2="8"></line>
+            <line class="lane-sep outer" x1="100" y1="100" x2="74" y2="8"></line>
+          </svg>
           <div class="track-grid"></div>
           <div class="track-gloss"></div>
         </div>
