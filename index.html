@@ -21,11 +21,14 @@
         <div><span class="label">Score</span><span id="score">0</span></div>
         <div><span class="label">Combo</span><span id="combo">0</span></div>
         <div><span class="label">Judge</span><span id="judge">-</span></div>
+        <div><span class="label">Song</span><span id="songTitle">Loading...</span></div>
       </div>
     </header>
 
     <section class="playfield-wrap">
       <div class="playfield" id="playfield">
+        <div id="cueText" class="cue hidden">READY</div>
+        <div id="hitFeedback" class="hit-feedback hidden">PERFECT</div>
         <div class="judge-line"></div>
         <div class="lanes">
           <button class="lane" data-lane="0" aria-label="lane 1"></button>

@@ -1,13 +1,12 @@
 const LANE_COUNT = 4;
 const HIT_KEYS = ["KeyD", "KeyF", "KeyJ", "KeyK"];
-const SONG_LENGTH_SEC = 30;
-const APPROACH_MS = 1800;
+const APPROACH_MS = 2100;
 
 const JUDGE_WINDOWS = {
   perfect: 45,
-  great: 90,
-  good: 140,
-  miss: 200,
+  great: 95,
+  good: 150,
+  miss: 210,
 };
 
 const scoreMap = {
@@ -17,66 +16,171 @@ const scoreMap = {
   miss: 0,
 };
 
+const FALLBACK_CHART = {
+  title: "Offline Demo Chart",
+  artist: "Local",
+  audioUrl: "",
+  license: "-",
+  offsetMs: 1800,
+  bpm: 120,
+  lengthSec: 30,
+  notes: Array.from({ length: 90 }).map((_, i) => ({
+    time: 1800 + i * 320,
+    lane: [0, 1, 2, 1, 3, 2][i % 6],
+  })),
+};
+
 const scoreEl = document.getElementById("score");
 const comboEl = document.getElementById("combo");
 const judgeEl = document.getElementById("judge");
+const songTitleEl = document.getElementById("songTitle");
 const notesLayer = document.getElementById("notes-layer");
 const playfield = document.getElementById("playfield");
+const cueEl = document.getElementById("cueText");
+const hitFeedbackEl = document.getElementById("hitFeedback");
 const startBtn = document.getElementById("startBtn");
 const restartBtn = document.getElementById("restartBtn");
 const progressEl = document.getElementById("songProgress");
 const laneButtons = Array.from(document.querySelectorAll(".lane"));
 
+let chartConfig = FALLBACK_CHART;
 let chart = [];
 let startedAt = 0;
 let gameRunning = false;
 let score = 0;
 let combo = 0;
 let rafId = null;
+let countdownTimers = [];
+let audio = null;
+let cueHideTimer = null;
+let feedbackHideTimer = null;
 
-function seededRandom(seed) {
-  let t = seed;
-  return () => {
-    t = (t * 1664525 + 1013904223) % 4294967296;
-    return t / 4294967296;
-  };
-}
+let audioCtx = null;
+let masterGain = null;
 
-function buildChart() {
-  const rnd = seededRandom(4625090);
-  const notes = [];
-  let time = 1200;
-
-  while (time < SONG_LENGTH_SEC * 1000) {
-    const lane = Math.floor(rnd() * LANE_COUNT);
-    notes.push({
-      lane,
-      hitTime: time,
-      judged: false,
-      element: null,
-    });
-
-    // Slightly syncopated interval for rhythm-game feeling.
-    const step = 220 + Math.floor(rnd() * 180);
-    time += step;
+function createAudioForChart() {
+  if (audio) {
+    audio.pause();
+    audio = null;
   }
 
-  return notes;
+  if (!chartConfig.audioUrl) return;
+
+  audio = new Audio(chartConfig.audioUrl);
+  audio.preload = "auto";
+  audio.crossOrigin = "anonymous";
+  audio.addEventListener("ended", () => {
+    if (gameRunning) {
+      stopGame();
+    }
+  });
+}
+
+function initAudio() {
+  if (audioCtx) return;
+  const Ctx = window.AudioContext || window.webkitAudioContext;
+  if (!Ctx) return;
+
+  audioCtx = new Ctx();
+  masterGain = audioCtx.createGain();
+  masterGain.gain.value = 0.18;
+  masterGain.connect(audioCtx.destination);
+}
+
+function playTone(freq, durationMs, type = "sine", volume = 1, delayMs = 0) {
+  if (!audioCtx || !masterGain) return;
+
+  const now = audioCtx.currentTime + delayMs / 1000;
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+
+  osc.type = type;
+  osc.frequency.value = freq;
+
+  const scaledVolume = volume * 0.16;
+  gain.gain.setValueAtTime(0.0001, now);
+  gain.gain.linearRampToValueAtTime(scaledVolume, now + 0.014);
+  gain.gain.exponentialRampToValueAtTime(0.0001, now + durationMs / 1000);
+
+  osc.connect(gain);
+  gain.connect(masterGain);
+
+  osc.start(now);
+  osc.stop(now + durationMs / 1000 + 0.03);
+}
+
+function playStartCue() {
+  showCue("START", 1000);
+  playTone(523.25, 150, "triangle", 0.9, 0);
+  playTone(659.25, 150, "triangle", 0.9, 160);
+  playTone(783.99, 220, "triangle", 1.0, 330);
+}
+
+function playEndCue() {
+  showCue("FINISH", 1400);
+  playTone(783.99, 170, "triangle", 0.95, 0);
+  playTone(659.25, 170, "triangle", 0.85, 180);
+  playTone(523.25, 230, "triangle", 0.9, 360);
+}
+
+function showCue(text, durationMs = 900) {
+  cueEl.textContent = text;
+  cueEl.classList.remove("hidden");
+  if (cueHideTimer) clearTimeout(cueHideTimer);
+  cueHideTimer = setTimeout(() => cueEl.classList.add("hidden"), durationMs);
+}
+
+function showHitFeedback(judge) {
+  hitFeedbackEl.className = "hit-feedback";
+  hitFeedbackEl.textContent = judge.toUpperCase();
+  hitFeedbackEl.classList.add(`judge-${judge}`);
+  hitFeedbackEl.classList.remove("hidden");
+
+  if (feedbackHideTimer) clearTimeout(feedbackHideTimer);
+  feedbackHideTimer = setTimeout(() => {
+    hitFeedbackEl.classList.add("hidden");
+  }, 240);
+}
+
+async function loadChartConfig() {
+  try {
+    const res = await fetch("charts/chopin_nocturne_easy.json", { cache: "no-store" });
+    if (!res.ok) throw new Error(`chart load failed: ${res.status}`);
+    chartConfig = await res.json();
+  } catch (err) {
+    chartConfig = FALLBACK_CHART;
+    progressEl.textContent = "Chart load failed: fallback";
+    console.warn(err);
+  }
+
+  songTitleEl.textContent = `${chartConfig.title} / ${chartConfig.artist}`;
+  createAudioForChart();
 }
 
 function createNoteElement(note) {
-  const laneWidth = playfield.clientWidth / LANE_COUNT;
   const el = document.createElement("div");
   el.className = "note" + (note.lane % 2 ? " alt" : "");
-  el.style.width = `${laneWidth - 18}px`;
-  el.style.left = `${note.lane * laneWidth + 9}px`;
-  el.style.top = "-30px";
   notesLayer.appendChild(el);
   note.element = el;
 }
 
+function buildChartFromConfig() {
+  return chartConfig.notes.map((n) => ({
+    lane: n.lane,
+    hitTime: n.time,
+    judged: false,
+    element: null,
+  }));
+}
+
 function resetGameState() {
-  chart = buildChart();
+  clearCountdown();
+  if (audio) {
+    audio.pause();
+    audio.currentTime = 0;
+  }
+
+  chart = buildChartFromConfig();
   notesLayer.innerHTML = "";
   chart.forEach(createNoteElement);
 
@@ -84,7 +188,9 @@ function resetGameState() {
   combo = 0;
   updateScoreUI();
   setJudge("-");
+  hitFeedbackEl.classList.add("hidden");
   progressEl.textContent = "Ready";
+  gameRunning = false;
 }
 
 function updateScoreUI() {
@@ -97,22 +203,64 @@ function setJudge(judge) {
   if (["perfect", "great", "good", "miss"].includes(judge)) {
     judgeEl.classList.add(`judge-${judge}`);
   }
-
   judgeEl.textContent = judge === "-" ? "-" : judge.toUpperCase();
 }
 
-function startGame() {
-  if (gameRunning) return;
+function clearCountdown() {
+  for (const t of countdownTimers) clearTimeout(t);
+  countdownTimers = [];
+}
+
+function startMainLoop() {
   startedAt = performance.now();
   gameRunning = true;
   progressEl.textContent = "Playing";
+  playStartCue();
+
+  if (audio) {
+    audio.currentTime = 0;
+    audio.play().catch((err) => {
+      console.warn("audio play failed", err);
+      progressEl.textContent = "Audio blocked by browser";
+    });
+  }
+
   loop();
+}
+
+function startGame() {
+  if (gameRunning || countdownTimers.length > 0) return;
+
+  initAudio();
+  if (audioCtx && audioCtx.state === "suspended") {
+    audioCtx.resume();
+  }
+
+  showCue("3", 650);
+  playTone(440, 120, "square", 0.7, 0);
+
+  countdownTimers.push(setTimeout(() => {
+    showCue("2", 650);
+    playTone(440, 120, "square", 0.7, 0);
+  }, 700));
+
+  countdownTimers.push(setTimeout(() => {
+    showCue("1", 650);
+    playTone(440, 120, "square", 0.7, 0);
+  }, 1400));
+
+  countdownTimers.push(setTimeout(() => {
+    clearCountdown();
+    startMainLoop();
+  }, 2100));
 }
 
 function stopGame() {
   gameRunning = false;
   progressEl.textContent = "Finished";
   if (rafId) cancelAnimationFrame(rafId);
+  if (audio) audio.pause();
+  playEndCue();
 }
 
 function judgeDelta(deltaAbs) {
@@ -128,6 +276,7 @@ function applyJudge(note, judge) {
   if (note.element) note.element.remove();
 
   setJudge(judge);
+  showHitFeedback(judge);
   score += scoreMap[judge];
 
   if (judge === "miss") {
@@ -137,6 +286,13 @@ function applyJudge(note, judge) {
     score += combo * 8;
   }
 
+  updateScoreUI();
+}
+
+function applyEmptyHitMiss() {
+  setJudge("miss");
+  showHitFeedback("miss");
+  combo = 0;
   updateScoreUI();
 }
 
@@ -164,21 +320,52 @@ function pressLane(laneIndex) {
   if (best) {
     const judge = judgeDelta(best.abs) || "miss";
     applyJudge(best.note, judge);
+  } else {
+    applyEmptyHitMiss();
   }
 }
 
+function clamp01(x) {
+  return Math.max(0, Math.min(1, x));
+}
+
+function laneCenterAtDepth(lane, depth) {
+  const width = playfield.clientWidth;
+  const center = width / 2;
+  const nearSpread = width * 0.92;
+  const farSpread = width * 0.38;
+  const t = (lane + 0.5) / LANE_COUNT - 0.5;
+
+  const xNear = center + t * nearSpread;
+  const xFar = center + t * farSpread;
+  return xFar + (xNear - xFar) * depth;
+}
+
 function updateNotes(nowMs) {
-  const judgeLineY = playfield.clientHeight - 120;
+  const farY = 55;
+  const judgeLineY = playfield.clientHeight - 110;
 
   for (const note of chart) {
     if (note.judged) continue;
 
     const dt = note.hitTime - nowMs;
-    const progress = 1 - dt / APPROACH_MS;
-    const y = progress * judgeLineY;
+    const linear = clamp01(1 - dt / APPROACH_MS);
+    const depth = Math.pow(linear, 1.15);
+    const y = farY + (judgeLineY - farY) * depth;
+
+    const scale = 0.58 + depth * 1.2;
+    const noteW = 92 * scale;
+    const noteH = 26 * scale;
+    const x = laneCenterAtDepth(note.lane, depth) - noteW / 2;
+    const skew = (note.lane - 1.5) * -1.8 * (1 - depth);
 
     if (note.element) {
-      note.element.style.top = `${Math.max(-30, y)}px`;
+      note.element.style.left = `${x}px`;
+      note.element.style.top = `${y - noteH / 2}px`;
+      note.element.style.width = `${noteW}px`;
+      note.element.style.height = `${noteH}px`;
+      note.element.style.transform = `skewX(${skew.toFixed(2)}deg)`;
+      note.element.style.opacity = String(0.55 + depth * 0.45);
     }
 
     if (dt < -JUDGE_WINDOWS.miss) {
@@ -193,10 +380,10 @@ function loop() {
   const now = performance.now() - startedAt;
   updateNotes(now);
 
-  const sec = Math.min(SONG_LENGTH_SEC, now / 1000);
-  progressEl.textContent = `Playing ${sec.toFixed(1)}s / ${SONG_LENGTH_SEC}s`;
+  const sec = Math.min(chartConfig.lengthSec, now / 1000);
+  progressEl.textContent = `Playing ${sec.toFixed(1)}s / ${chartConfig.lengthSec}s`;
 
-  if (now >= SONG_LENGTH_SEC * 1000 + 1500) {
+  if (now >= chartConfig.lengthSec * 1000 + 800) {
     stopGame();
     return;
   }
@@ -228,7 +415,6 @@ laneButtons.forEach((lane, i) => {
 startBtn.addEventListener("click", startGame);
 restartBtn.addEventListener("click", () => {
   if (rafId) cancelAnimationFrame(rafId);
-  gameRunning = false;
   resetGameState();
 });
 
@@ -241,4 +427,9 @@ window.addEventListener("resize", () => {
   });
 });
 
-resetGameState();
+async function init() {
+  await loadChartConfig();
+  resetGameState();
+}
+
+init();

@@ -1,11 +1,11 @@
 :root {
-  --bg-1: #081220;
-  --bg-2: #1a1243;
-  --lane: rgba(255, 255, 255, 0.07);
-  --lane-border: rgba(255, 255, 255, 0.15);
+  --bg-1: #070f1b;
+  --bg-2: #17254f;
+  --lane: rgba(255, 255, 255, 0.08);
+  --lane-border: rgba(255, 255, 255, 0.22);
   --line: #fff5a8;
-  --note: linear-gradient(180deg, #5ef4d6, #08beea);
-  --note-alt: linear-gradient(180deg, #ff8eb4, #ff5d7f);
+  --note-a: #57f0da;
+  --note-b: #ff7ba8;
   --text: #f2f5ff;
   --good: #75e3ff;
   --great: #63ff9d;
@@ -43,7 +43,7 @@ body {
 }
 
 .app {
-  width: min(920px, 96vw);
+  width: min(960px, 96vw);
   display: grid;
   gap: 14px;
   z-index: 1;
@@ -69,23 +69,23 @@ body {
 
 .status {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
 .status div {
-  min-width: 110px;
+  min-width: 120px;
   padding: 8px 10px;
   border: 1px solid var(--lane-border);
-  background: rgba(0,0,0,0.22);
+  background: rgba(0,0,0,0.24);
   border-radius: 10px;
   backdrop-filter: blur(2px);
 }
 
 .label {
   display: block;
-  opacity: 0.7;
-  font-size: 0.8rem;
+  opacity: 0.72;
+  font-size: 0.78rem;
 }
 
 .playfield-wrap {
@@ -95,10 +95,10 @@ body {
 
 .playfield {
   position: relative;
-  width: min(620px, 94vw);
-  height: min(70vh, 720px);
+  width: min(700px, 96vw);
+  height: min(74vh, 760px);
   border: 2px solid var(--lane-border);
-  border-radius: 14px;
+  border-radius: 16px;
   overflow: hidden;
   background:
     linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
@@ -109,6 +109,7 @@ body {
       transparent 8px,
       transparent 16px
     );
+  perspective: 1200px;
 }
 
 .lanes {
@@ -116,6 +117,7 @@ body {
   inset: 0;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
+  clip-path: polygon(26% 8%, 74% 8%, 100% 100%, 0% 100%);
 }
 
 .lane {
@@ -129,36 +131,71 @@ body {
 
 .lane:active,
 .lane.active {
-  background: rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.2);
 }
 
 .judge-line {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 120px;
-  height: 4px;
+  bottom: 110px;
+  height: 5px;
   background: var(--line);
-  box-shadow: 0 0 18px rgba(255, 245, 168, 0.8);
-  z-index: 3;
+  box-shadow: 0 0 22px rgba(255, 245, 168, 0.95);
+  z-index: 5;
 }
 
 #notes-layer {
   position: absolute;
   inset: 0;
-  z-index: 2;
+  z-index: 4;
+  pointer-events: none;
 }
 
 .note {
   position: absolute;
-  height: 20px;
-  border-radius: 8px;
-  background: var(--note);
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.26), transparent 28%), var(--note-a);
+  border: 1px solid rgba(255,255,255,0.35);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.4);
+  transform-origin: center;
 }
 
 .note.alt {
-  background: var(--note-alt);
+  background: linear-gradient(180deg, rgba(255,255,255,0.24), transparent 28%), var(--note-b);
+}
+
+.cue {
+  position: absolute;
+  inset: 0 auto auto 50%;
+  transform: translate(-50%, 34px) scale(1);
+  font: 700 2rem "Kanit", sans-serif;
+  letter-spacing: 0.06em;
+  color: #f8fcff;
+  text-shadow: 0 0 24px rgba(138, 250, 255, 0.95);
+  z-index: 8;
+  transition: opacity 220ms ease, transform 220ms ease;
+  pointer-events: none;
+}
+
+.hit-feedback {
+  position: absolute;
+  left: 50%;
+  bottom: 128px;
+  transform: translateX(-50%) scale(1);
+  font: 700 2rem "Kanit", sans-serif;
+  letter-spacing: 0.05em;
+  color: var(--perfect);
+  text-shadow: 0 0 20px rgba(255,255,255,0.7);
+  z-index: 8;
+  transition: opacity 180ms ease, transform 180ms ease;
+  pointer-events: none;
+}
+
+.cue.hidden,
+.hit-feedback.hidden {
+  opacity: 0;
+  transform: translate(-50%, 8px) scale(0.95);
 }
 
 .controls {
@@ -199,14 +236,18 @@ button.primary {
   }
 
   .playfield {
-    height: 74vh;
+    height: 75vh;
   }
 
   .judge-line {
-    bottom: 105px;
+    bottom: 100px;
   }
 
   .controls {
     flex-wrap: wrap;
+  }
+
+  .hit-feedback {
+    font-size: 1.7rem;
   }
 }
