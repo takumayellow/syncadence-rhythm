@@ -448,6 +448,10 @@ function pressLane(laneIndex) {
       applyJudge(best.note, judge);
     }
   } else {
+    const hasActiveHold = chart.some(
+      (note) => note.lane === laneIndex && note.holding && !note.judged
+    );
+    if (hasActiveHold) return;
     applyEmptyHitMiss();
   }
 }
@@ -485,7 +489,12 @@ function updateNotes(nowMs) {
       continue;
     }
 
-    if (dt < -JUDGE_WINDOWS.miss) {
+    if (note.durationMs > 0) {
+      if (!note.holding && dt < -JUDGE_WINDOWS.miss) {
+        applyJudge(note, "miss");
+        continue;
+      }
+    } else if (dt < -JUDGE_WINDOWS.miss) {
       applyJudge(note, "miss");
       continue;
     }
