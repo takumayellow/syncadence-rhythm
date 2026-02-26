@@ -67,8 +67,11 @@ const speedRangeEl = document.getElementById("speedRange");
 const speedValueEl = document.getElementById("speedValue");
 const timingRangeEl = document.getElementById("timingRange");
 const timingValueEl = document.getElementById("timingValue");
+const tempoRangeEl = document.getElementById("tempoRange");
+const tempoValueEl = document.getElementById("tempoValue");
 const judgeLineRangeEl = document.getElementById("judgeLineRange");
 const judgeLineValueEl = document.getElementById("judgeLineValue");
+const saveSongTuneBtn = document.getElementById("saveSongTuneBtn");
 const progressEl = document.getElementById("songProgress");
 const resultOverlayEl = document.getElementById("resultOverlay");
 const resultStateEl = document.getElementById("resultState");
@@ -97,6 +100,7 @@ const lanePressed = [false, false, false, false];
 let triedAudioFallbackUrl = false;
 let noteSpeed = 10.5;
 let timingOffsetMs = 0;
+let chartTempoBpm = 72;
 let judgeLineOffsetPx = 110;
 let achievedPoints = 0;
 let possiblePoints = 0;
@@ -145,10 +149,16 @@ function loadSettings() {
   if (Number.isFinite(savedJudgeLine) && savedJudgeLine >= 70 && savedJudgeLine <= 180) {
     judgeLineOffsetPx = savedJudgeLine;
   }
+  const savedChartTempo = Number(localStorage.getItem("pjsk_chart_tempo_bpm"));
+  if (Number.isFinite(savedChartTempo) && savedChartTempo >= 50 && savedChartTempo <= 110) {
+    chartTempoBpm = savedChartTempo;
+  }
   speedRangeEl.value = String(noteSpeed);
   speedValueEl.textContent = noteSpeed.toFixed(1);
   timingRangeEl.value = String(timingOffsetMs);
   timingValueEl.textContent = String(Math.round(timingOffsetMs));
+  tempoRangeEl.value = String(chartTempoBpm);
+  tempoValueEl.textContent = chartTempoBpm.toFixed(1);
   judgeLineRangeEl.value = String(judgeLineOffsetPx);
   judgeLineValueEl.textContent = String(Math.round(judgeLineOffsetPx));
   playfield.style.setProperty("--judge-line-bottom", `${judgeLineOffsetPx}px`);
@@ -158,6 +168,7 @@ function saveSettings() {
   localStorage.setItem("pjsk_note_speed", String(noteSpeed));
   localStorage.setItem("pjsk_timing_offset_ms", String(Math.round(timingOffsetMs)));
   localStorage.setItem("pjsk_judge_line_px", String(Math.round(judgeLineOffsetPx)));
+  localStorage.setItem("pjsk_chart_tempo_bpm", String(chartTempoBpm));
 }
 
 function getApproachMs() {
@@ -251,6 +262,7 @@ async function loadChartConfig() {
   }
 
   songTitleEl.textContent = `${chartConfig.title} / ${chartConfig.artist}`;
+  loadSongTune();
   createAudioForChart();
 }
 
@@ -262,7 +274,7 @@ function createNoteElement(note) {
 }
 
 function buildChartFromConfig() {
-  return chartConfig.notes.map((n) => ({
+  return generateTempoGridNotes(chartTempoBpm).map((n) => ({
     lane: n.lane,
     hitTime: n.time,
     durationMs: n.duration || 0,
@@ -273,6 +285,71 @@ function buildChartFromConfig() {
     element: null,
     lastStyleKey: "",
   }));
+}
+
+function songTuneKey() {
+  const id = chartConfig.audioUrl || chartConfig.title || "default";
+  return `pjsk_song_tune_${encodeURIComponent(id)}`;
+}
+
+function loadSongTune() {
+  try {
+    const raw = localStorage.getItem(songTuneKey());
+    if (!raw) return;
+    const s = JSON.parse(raw);
+    if (Number.isFinite(s.timingOffsetMs)) timingOffsetMs = Math.max(-300, Math.min(300, Math.round(s.timingOffsetMs)));
+    if (Number.isFinite(s.chartTempoBpm)) chartTempoBpm = Math.max(50, Math.min(110, s.chartTempoBpm));
+  } catch {
+    // ignore parse errors
+  }
+
+  timingRangeEl.value = String(timingOffsetMs);
+  timingValueEl.textContent = String(timingOffsetMs);
+  tempoRangeEl.value = String(chartTempoBpm);
+  tempoValueEl.textContent = chartTempoBpm.toFixed(1);
+}
+
+function saveSongTune() {
+  const payload = {
+    timingOffsetMs,
+    chartTempoBpm,
+  };
+  localStorage.setItem(songTuneKey(), JSON.stringify(payload));
+}
+
+function generateTempoGridNotes(bpm) {
+  const beatMs = 60000 / bpm;
+  const offsetMs = chartConfig.offsetMs || 1600;
+  const endMs = (chartConfig.lengthSec || 180) * 1000;
+  const notes = [];
+  const flow = [
+    1, 0.5, 1, 1 / 3, 1 / 3, 1 / 3,
+    1, 0.5, 0.5, 1,
+    1, 1 / 3, 1 / 3, 1 / 3, 1,
+    0.5, 0.5, 1,
+  ];
+  const lanes = [1, 2, 3, 2, 1, 0, 1, 2, 3, 2, 1, 2, 3, 2, 1, 0];
+  let t = offsetMs;
+  let i = 0;
+
+  while (t < endMs - 1200) {
+    const lane = lanes[i % lanes.length];
+    const note = { time: Math.round(t), lane };
+    if (i % 24 === 8) note.duration = Math.round(beatMs * 1.5);
+    if (i % 48 === 32) note.duration = Math.round(beatMs * 2);
+    notes.push(note);
+    t += beatMs * flow[i % flow.length];
+    i += 1;
+  }
+
+  const holds = notes.filter((n) => n.duration).map((n) => ({ s: n.time, e: n.time + n.duration + 90 }));
+  return notes.filter((n) => {
+    if (n.duration) return true;
+    for (const h of holds) {
+      if (n.time > h.s + 20 && n.time < h.e) return false;
+    }
+    return true;
+  });
 }
 
 function resetGameState() {
@@ -737,6 +814,29 @@ function setJudgeLineOffset(next) {
   saveSettings();
 }
 
+function rebuildChartForCurrentTime() {
+  const now = getSongTimeMs();
+  chart = buildChartFromConfig();
+  notesLayer.innerHTML = "";
+  for (const note of chart) {
+    if (note.hitTime < now - JUDGE_WINDOWS.miss) {
+      note.judged = true;
+      continue;
+    }
+    createNoteElement(note);
+  }
+}
+
+function setChartTempo(next, rebuild = true) {
+  chartTempoBpm = Math.max(50, Math.min(110, Number(next)));
+  tempoRangeEl.value = String(chartTempoBpm);
+  tempoValueEl.textContent = chartTempoBpm.toFixed(1);
+  saveSettings();
+  if (rebuild && chart.length > 0) {
+    rebuildChartForCurrentTime();
+  }
+}
+
 function flashLane(index) {
   const lane = laneVisuals[index];
   if (!lane) return;
@@ -821,8 +921,15 @@ speedRangeEl.addEventListener("input", () => {
 timingRangeEl.addEventListener("input", () => {
   setTimingOffset(Number(timingRangeEl.value));
 });
+tempoRangeEl.addEventListener("input", () => {
+  setChartTempo(Number(tempoRangeEl.value), true);
+});
 judgeLineRangeEl.addEventListener("input", () => {
   setJudgeLineOffset(Number(judgeLineRangeEl.value));
+});
+saveSongTuneBtn.addEventListener("click", () => {
+  saveSongTune();
+  progressEl.textContent = "Saved tune for this song";
 });
 
 window.addEventListener("resize", () => {
