@@ -14,23 +14,26 @@
 
 - 4レーン落下ノーツ
 - 判定: `Perfect / Great / Good / Miss`
+- ロングノーツ対応（押しっぱなし判定）
 - 空打ち時も`MISS`判定を表示
 - スコア，コンボ表示
+- `SETTINGS`からノーツ速度変更（6.0〜12.0，保存あり）
+- ノーツ幅を拡張して視認性を改善
 - JSON譜面読み込み（`charts/chopin_nocturne_easy.json`）
-- 実クラシック音源を優先再生（Moonlight Sonata 1st，Wikimedia）
-- 実クラシック再生が失敗した場合はローカル音源（`assets/audio/classical_long_3min.wav`）へフォールバック
+- ショパン音源再生（`assets/audio/Chopin_Nocturne_Op_9_No_2.ogg`）
+- 再生失敗時も同一ローカル音源へフォールバック
 - 公開音源が再生できない環境では，自動で内蔵シンセBGMにフォールバック
 - 開始カウントダウン（3，2，1）と開始/終了ジングル
 - 押下時は効果音なし，判定テキストのみ表示
 - 3D遠近レーン（奥から手前に迫る見た目）
-- 約3分の長尺プレイ（180秒，619ノーツ）
+- 長尺プレイ（200秒，345ノーツ）
+- テンポ基準譜面（BPM基準で拍揃え）
 - PCキーボード入力とモバイルタップの両対応
 
 ## 音源
 
-- ファイル: `assets/audio/classical_long_3min.wav`
-- 形式: 22.05kHz/16bit/mono WAV
-- ライセンス: プロジェクト内生成のフリー利用想定音源
+- ファイル: `assets/audio/Chopin_Nocturne_Op_9_No_2.ogg`
+- ライセンス: Public domain composition / Wikimedia recording
 
 ## Git操作メモ
 

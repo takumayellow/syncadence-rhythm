@@ -241,6 +241,14 @@ body {
   background: linear-gradient(180deg, rgba(255,255,255,0.24), transparent 28%), var(--note-b);
 }
 
+.note.long-note {
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0.08) 22%, rgba(0,0,0,0.06) 100%),
+    linear-gradient(180deg, #69ffe2, #14b6ff);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.38), inset 0 0 0 1px rgba(255,255,255,0.24);
+}
+
 .cue {
   position: absolute;
   inset: 0 auto auto 50%;
@@ -298,6 +306,51 @@ button.primary {
 .progress {
   margin-left: auto;
   opacity: 0.9;
+}
+
+.settings-panel {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(3, 8, 20, 0.65);
+  backdrop-filter: blur(3px);
+  z-index: 20;
+}
+
+.settings-panel.hidden {
+  display: none;
+}
+
+.settings-card {
+  width: min(420px, 92vw);
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid var(--lane-border);
+  background: linear-gradient(180deg, rgba(14, 24, 48, 0.95), rgba(10, 17, 35, 0.95));
+}
+
+.settings-card h2 {
+  margin: 0 0 12px;
+  font: 700 1.2rem "Kanit", sans-serif;
+}
+
+.speed-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin: 8px 0 16px;
+}
+
+#speedRange {
+  width: 100%;
+}
+
+#speedValue {
+  min-width: 44px;
+  text-align: right;
+  font: 700 1rem "Kanit", sans-serif;
 }
 
 .judge-perfect { color: var(--perfect); }

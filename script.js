@@ -1,6 +1,7 @@
 const LANE_COUNT = 4;
 const HIT_KEYS = ["KeyD", "KeyF", "KeyJ", "KeyK"];
-const APPROACH_MS = 2100;
+const BASE_APPROACH_MS = 2100;
+const NOTE_BASE_WIDTH = 118;
 
 const JUDGE_WINDOWS = {
   perfect: 45,
@@ -8,6 +9,7 @@ const JUDGE_WINDOWS = {
   good: 150,
   miss: 210,
 };
+const HOLD_EARLY_RELEASE_TOLERANCE_MS = 70;
 
 const scoreMap = {
   perfect: 1000,
@@ -57,6 +59,11 @@ const playfield = document.getElementById("playfield");
 const cueEl = document.getElementById("cueText");
 const hitFeedbackEl = document.getElementById("hitFeedback");
 const startBtn = document.getElementById("startBtn");
+const settingsBtn = document.getElementById("settingsBtn");
+const settingsPanelEl = document.getElementById("settingsPanel");
+const closeSettingsBtn = document.getElementById("closeSettingsBtn");
+const speedRangeEl = document.getElementById("speedRange");
+const speedValueEl = document.getElementById("speedValue");
 const progressEl = document.getElementById("songProgress");
 const laneButtons = Array.from(document.querySelectorAll(".lane"));
 const laneVisuals = Array.from(document.querySelectorAll("[data-lane-visual]"));
@@ -76,7 +83,9 @@ let useSynthBgm = false;
 let bgmStep = 0;
 let nextBgmMs = 0;
 const laneFlashTokens = [0, 0, 0, 0];
+const lanePressed = [false, false, false, false];
 let triedAudioFallbackUrl = false;
+let noteSpeed = 10.5;
 
 let audioCtx = null;
 let masterGain = null;
@@ -106,6 +115,23 @@ function createAudioForChart() {
       stopGame();
     }
   });
+}
+
+function loadSettings() {
+  const saved = Number(localStorage.getItem("pjsk_note_speed"));
+  if (Number.isFinite(saved) && saved >= 6 && saved <= 12) {
+    noteSpeed = saved;
+  }
+  speedRangeEl.value = String(noteSpeed);
+  speedValueEl.textContent = noteSpeed.toFixed(1);
+}
+
+function saveSettings() {
+  localStorage.setItem("pjsk_note_speed", String(noteSpeed));
+}
+
+function getApproachMs() {
+  return BASE_APPROACH_MS * (10 / noteSpeed);
 }
 
 function switchToFallbackAudioUrl() {
@@ -209,7 +235,11 @@ function buildChartFromConfig() {
   return chartConfig.notes.map((n) => ({
     lane: n.lane,
     hitTime: n.time,
+    durationMs: n.duration || 0,
+    holdEndTime: n.duration ? (n.time + n.duration) : n.time,
     judged: false,
+    holding: false,
+    holdBroken: false,
     element: null,
     lastStyleKey: "",
   }));
@@ -225,6 +255,7 @@ function resetGameState() {
   useSynthBgm = false;
   bgmStep = 0;
   nextBgmMs = 0;
+  lanePressed.fill(false);
 
   chart = buildChartFromConfig();
   notesLayer.innerHTML = "";
@@ -354,6 +385,33 @@ function applyJudge(note, judge) {
   updateScoreUI();
 }
 
+function startHoldNote(note, startJudge) {
+  note.holding = true;
+  setJudge(startJudge);
+  showHitFeedback("great");
+  score += Math.floor((scoreMap[startJudge] || 500) * 0.4);
+  updateScoreUI();
+}
+
+function finishHoldNote(note, success) {
+  note.judged = true;
+  note.holding = false;
+  if (note.element) note.element.remove();
+
+  if (success) {
+    setJudge("perfect");
+    showHitFeedback("perfect");
+    combo += 1;
+    score += 1200 + combo * 10;
+  } else {
+    setJudge("miss");
+    showHitFeedback("miss");
+    combo = 0;
+  }
+
+  updateScoreUI();
+}
+
 function applyEmptyHitMiss() {
   setJudge("miss");
   showHitFeedback("miss");
@@ -384,7 +442,11 @@ function pressLane(laneIndex) {
 
   if (best) {
     const judge = judgeDelta(best.abs) || "miss";
-    applyJudge(best.note, judge);
+    if (best.note.durationMs > 0 && judge !== "miss") {
+      startHoldNote(best.note, judge);
+    } else {
+      applyJudge(best.note, judge);
+    }
   } else {
     applyEmptyHitMiss();
   }
@@ -409,7 +471,8 @@ function laneCenterAtDepth(lane, depth) {
 function updateNotes(nowMs) {
   const farY = 55;
   const judgeLineY = playfield.clientHeight - 110;
-  const maxAhead = APPROACH_MS + 650;
+  const approachMs = getApproachMs();
+  const maxAhead = approachMs + 650;
 
   for (const note of chart) {
     if (note.judged) continue;
@@ -427,36 +490,76 @@ function updateNotes(nowMs) {
       continue;
     }
 
-    const linear = clamp01(1 - dt / APPROACH_MS);
-    const depth = Math.pow(linear, 1.15);
-    const y = farY + (judgeLineY - farY) * depth;
+    const headTime = note.holding ? nowMs : note.hitTime;
+    const tailTime = note.durationMs > 0 ? note.holdEndTime : note.hitTime;
+    const dtHead = headTime - nowMs;
+    const dtTail = tailTime - nowMs;
 
-    const scale = 0.58 + depth * 1.2;
-    const noteW = 92 * scale;
-    const noteH = 26 * scale;
-    const x = laneCenterAtDepth(note.lane, depth) - noteW / 2;
-    const skew = (note.lane - 1.5) * -1.8 * (1 - depth);
+    const headLinear = clamp01(1 - dtHead / approachMs);
+    const tailLinear = clamp01(1 - dtTail / approachMs);
+    const depthHead = Math.pow(headLinear, 1.15);
+    const depthTail = Math.pow(tailLinear, 1.15);
+    const yHead = farY + (judgeLineY - farY) * depthHead;
+    const yTail = farY + (judgeLineY - farY) * depthTail;
+
+    const scaleHead = 0.58 + depthHead * 1.2;
+    const noteWHead = NOTE_BASE_WIDTH * scaleHead;
+    const noteHHead = 26 * scaleHead;
+    const xHead = laneCenterAtDepth(note.lane, depthHead) - noteWHead / 2;
+    const skew = (note.lane - 1.5) * -1.8 * (1 - depthHead);
 
     if (note.element) {
+      let drawX = xHead;
+      let drawY = yHead - noteHHead / 2;
+      let drawW = noteWHead;
+      let drawH = noteHHead;
+
+      if (note.durationMs > 0) {
+        const top = Math.min(yHead, yTail);
+        const bottom = Math.max(yHead, yTail);
+        drawY = top - noteHHead * 0.45;
+        drawH = Math.max(noteHHead, (bottom - top) + noteHHead * 0.9);
+        note.element.classList.add("long-note");
+      } else {
+        note.element.classList.remove("long-note");
+      }
+
       const styleKey = [
-        x.toFixed(1),
-        (y - noteH / 2).toFixed(1),
-        noteW.toFixed(1),
-        noteH.toFixed(1),
+        drawX.toFixed(1),
+        drawY.toFixed(1),
+        drawW.toFixed(1),
+        drawH.toFixed(1),
         skew.toFixed(2),
-        (0.55 + depth * 0.45).toFixed(2),
+        (0.55 + depthHead * 0.45).toFixed(2),
+        note.durationMs > 0 ? "L" : "T",
       ].join("|");
 
       if (styleKey !== note.lastStyleKey) {
         note.lastStyleKey = styleKey;
         note.element.style.display = "block";
-        note.element.style.left = `${x}px`;
-        note.element.style.top = `${y - noteH / 2}px`;
-        note.element.style.width = `${noteW}px`;
-        note.element.style.height = `${noteH}px`;
+        note.element.style.left = `${drawX}px`;
+        note.element.style.top = `${drawY}px`;
+        note.element.style.width = `${drawW}px`;
+        note.element.style.height = `${drawH}px`;
         note.element.style.transform = `skewX(${skew.toFixed(2)}deg)`;
-        note.element.style.opacity = String(0.55 + depth * 0.45);
+        note.element.style.opacity = String(0.55 + depthHead * 0.45);
       }
+    }
+  }
+}
+
+function updateHoldNotes(nowMs) {
+  for (const note of chart) {
+    if (note.judged || !note.holding) continue;
+
+    if (!lanePressed[note.lane] && nowMs < note.holdEndTime - HOLD_EARLY_RELEASE_TOLERANCE_MS) {
+      note.holdBroken = true;
+      finishHoldNote(note, false);
+      continue;
+    }
+
+    if (nowMs >= note.holdEndTime) {
+      finishHoldNote(note, !note.holdBroken);
     }
   }
 }
@@ -486,6 +589,7 @@ function loop() {
 
   const now = getSongTimeMs();
   tickSynthBgm(now);
+  updateHoldNotes(now);
   updateNotes(now);
 
   const sec = Math.min(chartConfig.lengthSec, now / 1000);
@@ -497,6 +601,16 @@ function loop() {
   }
 
   rafId = requestAnimationFrame(loop);
+}
+
+function openSettings() {
+  settingsPanelEl.classList.remove("hidden");
+  settingsPanelEl.setAttribute("aria-hidden", "false");
+}
+
+function closeSettings() {
+  settingsPanelEl.classList.add("hidden");
+  settingsPanelEl.setAttribute("aria-hidden", "true");
 }
 
 function flashLane(index) {
@@ -520,14 +634,35 @@ function flashLane(index) {
 document.addEventListener("keydown", (event) => {
   const laneIndex = HIT_KEYS.indexOf(event.code);
   if (laneIndex < 0) return;
+  if (event.repeat) return;
+  lanePressed[laneIndex] = true;
   flashLane(laneIndex);
   pressLane(laneIndex);
 });
 
+document.addEventListener("keyup", (event) => {
+  if (event.code === "Escape") {
+    closeSettings();
+  }
+  const laneIndex = HIT_KEYS.indexOf(event.code);
+  if (laneIndex < 0) return;
+  lanePressed[laneIndex] = false;
+});
+
 laneButtons.forEach((lane, i) => {
   lane.addEventListener("pointerdown", () => {
+    lanePressed[i] = true;
     flashLane(i);
     pressLane(i);
+  });
+  lane.addEventListener("pointerup", () => {
+    lanePressed[i] = false;
+  });
+  lane.addEventListener("pointerleave", () => {
+    lanePressed[i] = false;
+  });
+  lane.addEventListener("pointercancel", () => {
+    lanePressed[i] = false;
   });
 });
 
@@ -535,6 +670,17 @@ startBtn.addEventListener("click", () => {
   if (rafId) cancelAnimationFrame(rafId);
   resetGameState();
   startGame();
+});
+
+settingsBtn.addEventListener("click", openSettings);
+closeSettingsBtn.addEventListener("click", closeSettings);
+settingsPanelEl.addEventListener("click", (event) => {
+  if (event.target === settingsPanelEl) closeSettings();
+});
+speedRangeEl.addEventListener("input", () => {
+  noteSpeed = Number(speedRangeEl.value);
+  speedValueEl.textContent = noteSpeed.toFixed(1);
+  saveSettings();
 });
 
 window.addEventListener("resize", () => {
@@ -547,6 +693,7 @@ window.addEventListener("resize", () => {
 });
 
 async function init() {
+  loadSettings();
   await loadChartConfig();
   resetGameState();
 }

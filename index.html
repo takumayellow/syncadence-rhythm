@@ -57,9 +57,22 @@
 
     <footer class="controls">
       <button id="startBtn" class="primary">START / RESTART</button>
+      <button id="settingsBtn">SETTINGS</button>
       <div id="songProgress" class="progress">Ready</div>
     </footer>
   </main>
+
+  <div id="settingsPanel" class="settings-panel hidden" aria-hidden="true">
+    <div class="settings-card">
+      <h2>Settings</h2>
+      <label for="speedRange">Note Speed</label>
+      <div class="speed-row">
+        <input id="speedRange" type="range" min="6" max="12" step="0.1" value="10.5" />
+        <span id="speedValue">10.5</span>
+      </div>
+      <button id="closeSettingsBtn">CLOSE</button>
+    </div>
+  </div>
 
   <script src="script.js"></script>
 </body>
