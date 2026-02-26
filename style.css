@@ -112,12 +112,62 @@ body {
   perspective: 1200px;
 }
 
+.track-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  clip-path: polygon(26% 8%, 74% 8%, 100% 100%, 0% 100%);
+  background:
+    linear-gradient(180deg, rgba(161, 224, 255, 0.12), rgba(32, 39, 94, 0.28) 35%, rgba(10, 14, 30, 0.44));
+}
+
+.track-grid {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.2) 0,
+      rgba(255, 255, 255, 0.2) 1px,
+      transparent 1px,
+      transparent 22px
+    ),
+    linear-gradient(
+      to right,
+      transparent 0 24.8%,
+      rgba(255, 255, 255, 0.34) 24.8% 25.2%,
+      transparent 25.2% 49.8%,
+      rgba(255, 255, 255, 0.34) 49.8% 50.2%,
+      transparent 50.2% 74.8%,
+      rgba(255, 255, 255, 0.34) 74.8% 75.2%,
+      transparent 75.2% 100%
+    );
+  transform-origin: top center;
+  transform: perspective(900px) rotateX(7deg);
+  opacity: 0.45;
+  animation: trackFlow 1.6s linear infinite;
+}
+
+.track-gloss {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(130deg, rgba(255, 255, 255, 0.14), transparent 38%),
+    linear-gradient(350deg, rgba(0, 250, 255, 0.09), transparent 45%);
+}
+
+@keyframes trackFlow {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 0 22px, 0 0; }
+}
+
 .lanes {
   position: absolute;
   inset: 0;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   clip-path: polygon(26% 8%, 74% 8%, 100% 100%, 0% 100%);
+  z-index: 2;
 }
 
 .lane {
@@ -142,13 +192,13 @@ body {
   height: 5px;
   background: var(--line);
   box-shadow: 0 0 22px rgba(255, 245, 168, 0.95);
-  z-index: 5;
+  z-index: 6;
 }
 
 #notes-layer {
   position: absolute;
   inset: 0;
-  z-index: 4;
+  z-index: 5;
   pointer-events: none;
 }
 

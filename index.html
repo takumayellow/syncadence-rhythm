@@ -29,6 +29,10 @@
       <div class="playfield" id="playfield">
         <div id="cueText" class="cue hidden">READY</div>
         <div id="hitFeedback" class="hit-feedback hidden">PERFECT</div>
+        <div class="track-bg" aria-hidden="true">
+          <div class="track-grid"></div>
+          <div class="track-gloss"></div>
+        </div>
         <div class="judge-line"></div>
         <div class="lanes">
           <button class="lane" data-lane="0" aria-label="lane 1"></button>
@@ -41,8 +45,7 @@
     </section>
 
     <footer class="controls">
-      <button id="startBtn" class="primary">START</button>
-      <button id="restartBtn">RESTART</button>
+      <button id="startBtn" class="primary">START / RESTART</button>
       <div id="songProgress" class="progress">Ready</div>
     </footer>
   </main>
