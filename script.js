@@ -69,6 +69,8 @@ const timingRangeEl = document.getElementById("timingRange");
 const timingValueEl = document.getElementById("timingValue");
 const tempoRangeEl = document.getElementById("tempoRange");
 const tempoValueEl = document.getElementById("tempoValue");
+const tapTempoBtn = document.getElementById("tapTempoBtn");
+const tapTempoStateEl = document.getElementById("tapTempoState");
 const judgeLineRangeEl = document.getElementById("judgeLineRange");
 const judgeLineValueEl = document.getElementById("judgeLineValue");
 const saveSongTuneBtn = document.getElementById("saveSongTuneBtn");
@@ -100,11 +102,13 @@ const lanePressed = [false, false, false, false];
 let triedAudioFallbackUrl = false;
 let noteSpeed = 10.5;
 let timingOffsetMs = 0;
-let chartTempoBpm = 72;
+let chartTempoBpm = 66;
 let judgeLineOffsetPx = 110;
 let achievedPoints = 0;
 let possiblePoints = 0;
 let missCount = 0;
+let tapTempoMode = false;
+let tapTimesMs = [];
 
 let audioCtx = null;
 let masterGain = null;
@@ -282,6 +286,10 @@ function buildChartFromConfig() {
     judged: false,
     holding: false,
     holdBroken: false,
+    headJudged: false,
+    tailJudged: false,
+    headJudge: null,
+    tailJudge: null,
     element: null,
     lastStyleKey: "",
   }));
@@ -293,6 +301,9 @@ function songTuneKey() {
 }
 
 function loadSongTune() {
+  if (Number.isFinite(chartConfig.bpm)) {
+    chartTempoBpm = Math.max(50, Math.min(110, Number(chartConfig.bpm)));
+  }
   try {
     const raw = localStorage.getItem(songTuneKey());
     if (!raw) return;
@@ -372,7 +383,7 @@ function resetGameState() {
   combo = 0;
   achievedPoints = 0;
   missCount = 0;
-  possiblePoints = chart.reduce((sum, n) => sum + (n.durationMs > 0 ? 1200 : 1000), 0);
+  possiblePoints = chart.reduce((sum, n) => sum + (n.durationMs > 0 ? 2200 : 1000), 0);
   updateScoreUI();
   setJudge("-");
   hitFeedbackEl.classList.add("hidden");
@@ -510,17 +521,47 @@ function applyJudge(note, judge) {
   updateScoreUI();
 }
 
-function startHoldNote(note, startJudge) {
-  note.holding = true;
-  setJudge(startJudge);
-  showHitFeedback("great");
-  score += Math.floor((scoreMap[startJudge] || 500) * 0.4);
+function judgeLongHead(note, judge) {
+  if (note.headJudged) return;
+  note.headJudged = true;
+  note.headJudge = judge;
+
+  setJudge(judge);
+  showHitFeedback(judge);
+
+  if (judge === "perfect") achievedPoints += 1000;
+  else if (judge === "great") achievedPoints += 800;
+  else if (judge === "good") achievedPoints += 550;
+  else missCount += 1;
+
+  if (judge === "miss") {
+    combo = 0;
+  } else {
+    combo += 1;
+    score += Math.floor((scoreMap[judge] || 500) * 0.45) + combo * 6;
+    note.holding = true;
+  }
+
   updateScoreUI();
 }
 
-function finishHoldNote(note, success) {
-  note.judged = true;
+function startLateHold(note) {
+  if (note.tailJudged) return;
+  if (!note.headJudged) {
+    judgeLongHead(note, "miss");
+  }
+  note.holding = true;
+  note.holdBroken = false;
+  setJudge("good");
+  showHitFeedback("good");
+}
+
+function judgeLongTail(note, success) {
+  if (note.tailJudged) return;
+  note.tailJudged = true;
+  note.tailJudge = success ? "perfect" : "miss";
   note.holding = false;
+  note.judged = true;
   if (note.element) note.element.remove();
 
   if (success) {
@@ -552,9 +593,27 @@ function pressLane(laneIndex) {
 
   const now = getSongTimeMs();
   let best = null;
+  let lateHold = null;
 
   for (const note of chart) {
     if (note.judged || note.lane !== laneIndex) continue;
+    if (note.durationMs > 0) {
+      if (!note.headJudged) {
+        const delta = now - note.hitTime;
+        const abs = Math.abs(delta);
+        if (delta < -JUDGE_WINDOWS.miss) {
+          break;
+        }
+        if (abs <= JUDGE_WINDOWS.miss && (!best || abs < best.abs)) {
+          best = { note, abs, isLongHead: true };
+          continue;
+        }
+      }
+      if (!note.tailJudged && !note.holding && now > note.hitTime + JUDGE_WINDOWS.miss && now < note.holdEndTime) {
+        lateHold = note;
+      }
+      continue;
+    }
 
     const delta = now - note.hitTime;
     const abs = Math.abs(delta);
@@ -564,17 +623,19 @@ function pressLane(laneIndex) {
     }
 
     if (abs <= JUDGE_WINDOWS.miss && (!best || abs < best.abs)) {
-      best = { note, abs };
+      best = { note, abs, isLongHead: false };
     }
   }
 
   if (best) {
     const judge = judgeDelta(best.abs) || "miss";
-    if (best.note.durationMs > 0 && judge !== "miss") {
-      startHoldNote(best.note, judge);
+    if (best.isLongHead) {
+      judgeLongHead(best.note, judge);
     } else {
       applyJudge(best.note, judge);
     }
+  } else if (lateHold) {
+    startLateHold(lateHold);
   } else {
     const hasActiveHold = chart.some(
       (note) => note.lane === laneIndex && note.holding && !note.judged
@@ -618,8 +679,11 @@ function updateNotes(nowMs) {
     }
 
     if (note.durationMs > 0) {
-      if (!note.holding && dt < -JUDGE_WINDOWS.miss) {
-        applyJudge(note, "miss");
+      if (!note.headJudged && nowMs > note.hitTime + JUDGE_WINDOWS.miss) {
+        judgeLongHead(note, "miss");
+      }
+      if (!note.tailJudged && nowMs > note.holdEndTime + JUDGE_WINDOWS.miss) {
+        judgeLongTail(note, false);
         continue;
       }
     } else if (dt < -JUDGE_WINDOWS.miss) {
@@ -713,16 +777,16 @@ function updateNotes(nowMs) {
 
 function updateHoldNotes(nowMs) {
   for (const note of chart) {
-    if (note.judged || !note.holding) continue;
+    if (note.judged || note.tailJudged) continue;
 
-    if (!lanePressed[note.lane] && nowMs < note.holdEndTime - HOLD_EARLY_RELEASE_TOLERANCE_MS) {
+    if (note.holding && !lanePressed[note.lane] && nowMs < note.holdEndTime - HOLD_EARLY_RELEASE_TOLERANCE_MS) {
       note.holdBroken = true;
-      finishHoldNote(note, false);
+      note.holding = false;
       continue;
     }
 
-    if (nowMs >= note.holdEndTime) {
-      finishHoldNote(note, !note.holdBroken);
+    if (note.holding && nowMs >= note.holdEndTime) {
+      judgeLongTail(note, !note.holdBroken);
     }
   }
 }
@@ -745,6 +809,45 @@ function getSongTimeMs() {
     return audio.currentTime * 1000 + timingOffsetMs;
   }
   return performance.now() - startedAt + timingOffsetMs;
+}
+
+function getRawSongTimeMs() {
+  if (audio && !audio.paused && Number.isFinite(audio.currentTime)) {
+    return audio.currentTime * 1000;
+  }
+  return performance.now() - startedAt;
+}
+
+function median(values) {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function nearestGrid(timeMs, beatMs, baseOffsetMs) {
+  const k = Math.round((timeMs - baseOffsetMs) / beatMs);
+  return baseOffsetMs + k * beatMs;
+}
+
+function applyTapTempoCalibration() {
+  if (tapTimesMs.length < 4) return false;
+
+  const intervals = [];
+  for (let i = 1; i < tapTimesMs.length; i += 1) {
+    intervals.push(tapTimesMs[i] - tapTimesMs[i - 1]);
+  }
+  const beatMs = median(intervals);
+  if (!Number.isFinite(beatMs) || beatMs < 350 || beatMs > 1400) return false;
+
+  const bpm = 60000 / beatMs;
+  setChartTempo(bpm, true);
+
+  const deltas = tapTimesMs.map((t) => nearestGrid(t, beatMs, chartConfig.offsetMs || 1600) - t);
+  const deltaAvg = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+  setTimingOffset(timingOffsetMs + deltaAvg);
+  saveSongTune();
+  return true;
 }
 
 function loop() {
@@ -774,6 +877,31 @@ function openSettings() {
 function closeSettings() {
   settingsPanelEl.classList.add("hidden");
   settingsPanelEl.setAttribute("aria-hidden", "true");
+}
+
+function setTapTempoState(text) {
+  tapTempoStateEl.textContent = text;
+}
+
+function toggleTapTempoMode() {
+  tapTempoMode = !tapTempoMode;
+  tapTimesMs = [];
+  setTapTempoState(tapTempoMode ? "tap quarter notes..." : "idle");
+}
+
+function registerTapTempo() {
+  if (!tapTempoMode || !gameRunning) return;
+  const t = getRawSongTimeMs();
+  tapTimesMs.push(t);
+  if (tapTimesMs.length > 12) tapTimesMs.shift();
+  setTapTempoState(`taps: ${tapTimesMs.length}`);
+
+  if (tapTimesMs.length >= 8) {
+    const ok = applyTapTempoCalibration();
+    setTapTempoState(ok ? `applied ${chartTempoBpm.toFixed(1)} BPM` : "failed, retry");
+    tapTempoMode = false;
+    tapTimesMs = [];
+  }
 }
 
 function calcRank(accPercent) {
@@ -856,6 +984,11 @@ function flashLane(index) {
 }
 
 document.addEventListener("keydown", (event) => {
+  if (tapTempoMode && (event.code === "Space" || event.code === "KeyT")) {
+    event.preventDefault();
+    registerTapTempo();
+    return;
+  }
   const laneIndex = HIT_KEYS.indexOf(event.code);
   if (laneIndex < 0) return;
   if (event.repeat) return;
@@ -931,6 +1064,9 @@ saveSongTuneBtn.addEventListener("click", () => {
   saveSongTune();
   progressEl.textContent = "Saved tune for this song";
 });
+tapTempoBtn.addEventListener("click", () => {
+  toggleTapTempoMode();
+});
 
 window.addEventListener("resize", () => {
   if (!chart.length) return;
@@ -943,6 +1079,7 @@ window.addEventListener("resize", () => {
 
 async function init() {
   loadSettings();
+  setTapTempoState("idle");
   await loadChartConfig();
   resetGameState();
 }
