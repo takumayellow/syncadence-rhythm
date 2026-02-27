@@ -71,6 +71,8 @@ const tempoRangeEl = document.getElementById("tempoRange");
 const tempoValueEl = document.getElementById("tempoValue");
 const tapTempoBtn = document.getElementById("tapTempoBtn");
 const tapTempoStateEl = document.getElementById("tapTempoState");
+const musicXmlInputEl = document.getElementById("musicXmlInput");
+const xmlImportStateEl = document.getElementById("xmlImportState");
 const judgeLineRangeEl = document.getElementById("judgeLineRange");
 const judgeLineValueEl = document.getElementById("judgeLineValue");
 const saveSongTuneBtn = document.getElementById("saveSongTuneBtn");
@@ -109,6 +111,8 @@ let possiblePoints = 0;
 let missCount = 0;
 let tapTempoMode = false;
 let tapTimesMs = [];
+let chartSourceMode = "grid";
+let importedScoreNotes = [];
 
 let audioCtx = null;
 let masterGain = null;
@@ -278,7 +282,11 @@ function createNoteElement(note) {
 }
 
 function buildChartFromConfig() {
-  return generateTempoGridNotes(chartTempoBpm).map((n) => ({
+  const sourceNotes = chartSourceMode === "score" && importedScoreNotes.length
+    ? importedScoreNotes
+    : generateTempoGridNotes(chartTempoBpm);
+
+  return sourceNotes.map((n) => ({
     lane: n.lane,
     hitTime: n.time,
     durationMs: n.duration || 0,
@@ -293,6 +301,108 @@ function buildChartFromConfig() {
     element: null,
     lastStyleKey: "",
   }));
+}
+
+function pitchToMidi(step, alter, octave) {
+  const map = { C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 };
+  return (octave + 1) * 12 + (map[step] ?? 0) + alter;
+}
+
+function mapMidiToLane(midi, minMidi, maxMidi) {
+  const span = Math.max(1, maxMidi - minMidi);
+  const t = Math.max(0, Math.min(1, (midi - minMidi) / span));
+  return Math.max(0, Math.min(3, Math.floor(t * 4)));
+}
+
+function parseMusicXmlToNotes(xmlText) {
+  const doc = new DOMParser().parseFromString(xmlText, "application/xml");
+  const parserError = doc.querySelector("parsererror");
+  if (parserError) {
+    throw new Error("MusicXML parse error");
+  }
+
+  const part = doc.querySelector("part");
+  if (!part) throw new Error("MusicXML has no <part>");
+
+  let divisions = 1;
+  let tempo = chartTempoBpm;
+  let cursorDiv = 0;
+  let lastChordStartDiv = 0;
+  const raw = [];
+
+  for (const measure of part.querySelectorAll("measure")) {
+    const divEl = measure.querySelector("attributes > divisions");
+    if (divEl) {
+      const d = Number(divEl.textContent);
+      if (Number.isFinite(d) && d > 0) divisions = d;
+    }
+
+    for (const child of Array.from(measure.children)) {
+      if (child.tagName === "direction") {
+        const soundTempo = child.querySelector("sound[tempo]");
+        if (soundTempo) {
+          const t = Number(soundTempo.getAttribute("tempo"));
+          if (Number.isFinite(t) && t >= 30 && t <= 240) tempo = t;
+        }
+        const perMin = child.querySelector("metronome > per-minute");
+        if (perMin) {
+          const t = Number(perMin.textContent);
+          if (Number.isFinite(t) && t >= 30 && t <= 240) tempo = t;
+        }
+      }
+
+      if (child.tagName === "backup") {
+        const dur = Number(child.querySelector("duration")?.textContent || "0");
+        cursorDiv = Math.max(0, cursorDiv - dur);
+        continue;
+      }
+
+      if (child.tagName === "forward") {
+        const dur = Number(child.querySelector("duration")?.textContent || "0");
+        cursorDiv += dur;
+        continue;
+      }
+
+      if (child.tagName !== "note") continue;
+      if (child.querySelector("grace")) continue;
+
+      const isRest = !!child.querySelector("rest");
+      const hasChord = !!child.querySelector("chord");
+      const dur = Number(child.querySelector("duration")?.textContent || "0");
+      const startDiv = hasChord ? lastChordStartDiv : cursorDiv;
+      const beatMs = 60000 / tempo;
+      const quarterMs = beatMs;
+      const startMs = Math.round((startDiv / divisions) * quarterMs + (chartConfig.offsetMs || 1600));
+      const durMs = Math.max(0, Math.round((dur / divisions) * quarterMs));
+
+      if (!isRest) {
+        const step = child.querySelector("pitch > step")?.textContent || "C";
+        const alter = Number(child.querySelector("pitch > alter")?.textContent || "0");
+        const octave = Number(child.querySelector("pitch > octave")?.textContent || "4");
+        const midi = pitchToMidi(step, alter, octave);
+        raw.push({ time: startMs, duration: durMs, midi });
+      }
+
+      lastChordStartDiv = startDiv;
+      if (!hasChord) {
+        cursorDiv += dur;
+      }
+    }
+  }
+
+  if (!raw.length) return [];
+  const minMidi = Math.min(...raw.map((n) => n.midi));
+  const maxMidi = Math.max(...raw.map((n) => n.midi));
+
+  const notes = raw.map((n) => {
+    const lane = mapMidiToLane(n.midi, minMidi, maxMidi);
+    const out = { time: n.time, lane };
+    if (n.duration >= 700) out.duration = n.duration;
+    return out;
+  });
+
+  notes.sort((a, b) => a.time - b.time);
+  return notes;
 }
 
 function songTuneKey() {
@@ -883,6 +993,10 @@ function setTapTempoState(text) {
   tapTempoStateEl.textContent = text;
 }
 
+function setXmlImportState(text) {
+  xmlImportStateEl.textContent = text;
+}
+
 function toggleTapTempoMode() {
   tapTempoMode = !tapTempoMode;
   tapTimesMs = [];
@@ -963,6 +1077,21 @@ function setChartTempo(next, rebuild = true) {
   if (rebuild && chart.length > 0) {
     rebuildChartForCurrentTime();
   }
+}
+
+async function importMusicXmlFile(file) {
+  const text = await file.text();
+  const notes = parseMusicXmlToNotes(text);
+  if (!notes.length) {
+    setXmlImportState("empty score");
+    return;
+  }
+
+  importedScoreNotes = notes;
+  chartSourceMode = "score";
+  setXmlImportState(`score: ${file.name} (${notes.length} notes)`);
+  progressEl.textContent = "MusicXML imported";
+  rebuildChartForCurrentTime();
 }
 
 function flashLane(index) {
@@ -1067,6 +1196,16 @@ saveSongTuneBtn.addEventListener("click", () => {
 tapTempoBtn.addEventListener("click", () => {
   toggleTapTempoMode();
 });
+musicXmlInputEl.addEventListener("change", async () => {
+  const file = musicXmlInputEl.files?.[0];
+  if (!file) return;
+  try {
+    await importMusicXmlFile(file);
+  } catch (err) {
+    console.warn(err);
+    setXmlImportState("import failed");
+  }
+});
 
 window.addEventListener("resize", () => {
   if (!chart.length) return;
@@ -1080,6 +1219,7 @@ window.addEventListener("resize", () => {
 async function init() {
   loadSettings();
   setTapTempoState("idle");
+  setXmlImportState("no score");
   await loadChartConfig();
   resetGameState();
 }
