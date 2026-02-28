@@ -269,6 +269,24 @@ body {
   pointer-events: none;
 }
 
+.countdown-overlay {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  font: 700 5rem "Kanit", sans-serif;
+  letter-spacing: 0.06em;
+  color: #ffffff;
+  text-shadow: 0 0 26px rgba(123, 247, 255, 0.95), 0 0 44px rgba(255, 255, 255, 0.5);
+  z-index: 11;
+  transition: opacity 140ms ease;
+  pointer-events: none;
+}
+
+.countdown-overlay.hidden {
+  opacity: 0;
+}
+
 .hit-feedback {
   position: absolute;
   left: 50%;

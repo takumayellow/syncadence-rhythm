@@ -45,7 +45,9 @@ type Runtime = {
   rafId: number | null;
   audio: HTMLAudioElement | null;
   audioCtx: AudioContext | null;
-  synthTimeouts: number[];
+  synthEvents: ScoreEvent[];
+  synthCursor: number;
+  lastProgressUpdateMs: number;
   countdown: number[];
   lanePressed: boolean[];
   laneFlashTokens: number[];
@@ -267,7 +269,9 @@ export default function App(): JSX.Element {
     rafId: null,
     audio: null,
     audioCtx: null,
-    synthTimeouts: [],
+    synthEvents: [],
+    synthCursor: 0,
+    lastProgressUpdateMs: 0,
     countdown: [],
     lanePressed: [false, false, false, false],
     laneFlashTokens: [0, 0, 0, 0],
@@ -303,6 +307,7 @@ export default function App(): JSX.Element {
   const [tapTempoMode, setTapTempoMode] = useState(false);
   const [tapTimes, setTapTimes] = useState<number[]>([]);
   const [xmlImportState, setXmlImportState] = useState("no score");
+  const [countdownText, setCountdownText] = useState("");
   const [hitFeedback, setHitFeedback] = useState<{ text: string; className: string; visible: boolean }>({
     text: "",
     className: "judge-perfect",
@@ -462,82 +467,97 @@ export default function App(): JSX.Element {
 
   function stopSynthBgm(): void {
     const rt = runtimeRef.current;
-    rt.synthTimeouts.forEach((id) => clearTimeout(id));
-    rt.synthTimeouts = [];
+    rt.synthEvents = [];
+    rt.synthCursor = 0;
     if (rt.audioCtx) {
       rt.audioCtx.close().catch(() => {});
       rt.audioCtx = null;
     }
   }
 
+  function playSynthNote(ctx: AudioContext, midi: number, durationMs: number): void {
+    const freq = midiToFreq(midi);
+    const dur = Math.max(0.12, Math.min(3.2, (durationMs / 1000) * 0.85));
+    const now = ctx.currentTime;
+
+    const mix = ctx.createGain();
+    const env = ctx.createGain();
+    const filter = ctx.createBiquadFilter();
+    filter.type = "lowpass";
+    filter.frequency.value = 3200;
+    filter.Q.value = 0.8;
+    mix.connect(filter);
+    filter.connect(env);
+    env.connect(ctx.destination);
+
+    const o1 = ctx.createOscillator();
+    o1.type = "sine";
+    o1.frequency.value = freq;
+    const g1 = ctx.createGain();
+    g1.gain.value = 0.58;
+    o1.connect(g1);
+    g1.connect(mix);
+
+    const o2 = ctx.createOscillator();
+    o2.type = "triangle";
+    o2.frequency.value = freq * 2;
+    const g2 = ctx.createGain();
+    g2.gain.value = 0.18;
+    o2.connect(g2);
+    g2.connect(mix);
+
+    const o3 = ctx.createOscillator();
+    o3.type = "sine";
+    o3.frequency.value = freq * 0.5;
+    const g3 = ctx.createGain();
+    g3.gain.value = 0.12;
+    o3.connect(g3);
+    g3.connect(mix);
+
+    const attack = 0.018;
+    const decay = 0.16;
+    const release = Math.min(0.45, dur * 0.5);
+    const sustain = 0.18;
+    env.gain.setValueAtTime(0.0001, now);
+    env.gain.exponentialRampToValueAtTime(0.24, now + attack);
+    env.gain.exponentialRampToValueAtTime(sustain, now + attack + decay);
+    env.gain.setValueAtTime(sustain, now + Math.max(attack + decay, dur - release));
+    env.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+    o1.start(now);
+    o2.start(now);
+    o3.start(now);
+    o1.stop(now + dur + 0.02);
+    o2.stop(now + dur + 0.02);
+    o3.stop(now + dur + 0.02);
+  }
+
   function startSynthBgm(): void {
     const rt = runtimeRef.current;
     stopSynthBgm();
     const source = rt.midiPlaybackEvents.length ? rt.midiPlaybackEvents : getCurrentEvents();
-    const events = source.filter((e) => Number.isFinite(e.timeMs));
+    const events = source
+      .filter((e) => Number.isFinite(e.timeMs))
+      .sort((a, b) => (a.timeMs as number) - (b.timeMs as number));
     if (!events.length) return;
     const ctx = new AudioContext();
     ctx.resume().catch(() => {});
     rt.audioCtx = ctx;
-    rt.synthTimeouts = events.map((e) =>
-      window.setTimeout(() => {
-        if (!runtimeRef.current.gameRunning || !runtimeRef.current.audioCtx) return;
-        const freq = midiToFreq(e.midi);
-        const dur = Math.max(0.12, Math.min(3.2, ((e.durationMs ?? 220) / 1000) * 0.85));
-        const now = ctx.currentTime;
+    rt.synthEvents = events;
+    rt.synthCursor = 0;
+  }
 
-        const mix = ctx.createGain();
-        const env = ctx.createGain();
-        const filter = ctx.createBiquadFilter();
-        filter.type = "lowpass";
-        filter.frequency.value = 3200;
-        filter.Q.value = 0.8;
-        mix.connect(filter);
-        filter.connect(env);
-        env.connect(ctx.destination);
-
-        const o1 = ctx.createOscillator();
-        o1.type = "sine";
-        o1.frequency.value = freq;
-        const g1 = ctx.createGain();
-        g1.gain.value = 0.58;
-        o1.connect(g1);
-        g1.connect(mix);
-
-        const o2 = ctx.createOscillator();
-        o2.type = "triangle";
-        o2.frequency.value = freq * 2;
-        const g2 = ctx.createGain();
-        g2.gain.value = 0.18;
-        o2.connect(g2);
-        g2.connect(mix);
-
-        const o3 = ctx.createOscillator();
-        o3.type = "sine";
-        o3.frequency.value = freq * 0.5;
-        const g3 = ctx.createGain();
-        g3.gain.value = 0.12;
-        o3.connect(g3);
-        g3.connect(mix);
-
-        const attack = 0.018;
-        const decay = 0.16;
-        const release = Math.min(0.45, dur * 0.5);
-        const sustain = 0.18;
-        env.gain.setValueAtTime(0.0001, now);
-        env.gain.exponentialRampToValueAtTime(0.24, now + attack);
-        env.gain.exponentialRampToValueAtTime(sustain, now + attack + decay);
-        env.gain.setValueAtTime(sustain, now + Math.max(attack + decay, dur - release));
-        env.gain.exponentialRampToValueAtTime(0.0001, now + dur);
-
-        o1.start(now);
-        o2.start(now);
-        o3.start(now);
-        o1.stop(now + dur + 0.02);
-        o2.stop(now + dur + 0.02);
-        o3.stop(now + dur + 0.02);
-      }, Math.max(0, Math.round(e.timeMs ?? 0)))
-    );
+  function tickSynthBgm(rawMs: number): void {
+    const rt = runtimeRef.current;
+    if (!rt.useSynthBgm || !rt.audioCtx || !rt.synthEvents.length) return;
+    const lookAheadMs = 22;
+    while (rt.synthCursor < rt.synthEvents.length) {
+      const ev = rt.synthEvents[rt.synthCursor];
+      const t = ev.timeMs as number;
+      if (t > rawMs + lookAheadMs) break;
+      playSynthNote(rt.audioCtx, ev.midi, ev.durationMs ?? 220);
+      rt.synthCursor += 1;
+    }
   }
 
   function createNoteElement(note: PlayNote): void {
@@ -592,6 +612,7 @@ export default function App(): JSX.Element {
     setCombo(0);
     setJudge("-");
     setProgress("Ready");
+    setCountdownText("");
     setResult((r) => ({ ...r, show: false }));
     setHitFeedback((v) => ({ ...v, visible: false }));
     rebuildChartForCurrentTime();
@@ -688,6 +709,7 @@ export default function App(): JSX.Element {
     if (rt.gameRunning || rt.countdown.length) return;
     setProgress("Counting...");
     setJudge("-");
+    setCountdownText("3");
 
     if (rt.audio) {
       rt.audio.currentTime = 0;
@@ -705,13 +727,24 @@ export default function App(): JSX.Element {
       rt.useSynthBgm = true;
     }
 
-    const t1 = window.setTimeout(() => setJudge("3"), 0);
-    const t2 = window.setTimeout(() => setJudge("2"), 700);
-    const t3 = window.setTimeout(() => setJudge("1"), 1400);
+    const t1 = window.setTimeout(() => {
+      setJudge("3");
+      setCountdownText("3");
+    }, 0);
+    const t2 = window.setTimeout(() => {
+      setJudge("2");
+      setCountdownText("2");
+    }, 700);
+    const t3 = window.setTimeout(() => {
+      setJudge("1");
+      setCountdownText("1");
+    }, 1400);
     const t4 = window.setTimeout(() => {
       rt.countdown = [];
       rt.startedAt = performance.now();
+      rt.lastProgressUpdateMs = -1000;
       rt.gameRunning = true;
+      setCountdownText("");
       if (rt.audio) {
         rt.audio.currentTime = 0;
         rt.audio.play().then(() => {
@@ -942,12 +975,17 @@ export default function App(): JSX.Element {
   function loop(): void {
     const rt = runtimeRef.current;
     if (!rt.gameRunning) return;
+    const rawMs = getRawSongTimeMs();
     const now = getSongTimeMs();
+    tickSynthBgm(rawMs);
     updateHoldNotes(now);
     updateNotes(now);
     const chartSec = Math.max(1, rt.chartEndMs / 1000);
     const sec = Math.min(chartSec, now / 1000);
-    setProgress(`Playing ${sec.toFixed(1)}s / ${chartSec.toFixed(1)}s`);
+    if (rawMs - rt.lastProgressUpdateMs >= 120) {
+      setProgress(`Playing ${sec.toFixed(1)}s / ${chartSec.toFixed(1)}s`);
+      rt.lastProgressUpdateMs = rawMs;
+    }
     if (now >= rt.chartEndMs) {
       stopGame();
       return;
@@ -1087,6 +1125,7 @@ export default function App(): JSX.Element {
         <section className="playfield-wrap">
           <div className="playfield" id="playfield" ref={playfieldRef}>
             <div className="cue">{runtimeRef.current.gameRunning ? "" : "READY"}</div>
+            <div className={`countdown-overlay ${countdownText ? "" : "hidden"}`}>{countdownText}</div>
             <div className="judge-line" />
             <div className="track-bg" aria-hidden="true">
               <svg className="track-perspective" viewBox="0 0 100 100" preserveAspectRatio="none">
