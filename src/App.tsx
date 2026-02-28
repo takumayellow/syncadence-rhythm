@@ -640,6 +640,18 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     const now = rt.gameRunning ? getSongTimeMs() : 0;
     rt.chart = eventsToNotes(getCurrentEvents(), settingsRef.current.chartTempoBpm);
+    if (rt.chart.length) {
+      const firstHit = Math.min(...rt.chart.map((n) => n.hitTime));
+      const desiredFirstHit = 1200;
+      if (firstHit < desiredFirstHit) {
+        const shift = desiredFirstHit - firstHit;
+        rt.chart = rt.chart.map((n) => ({
+          ...n,
+          hitTime: n.hitTime + shift,
+          holdEndTime: n.holdEndTime + shift,
+        }));
+      }
+    }
     const lastHit = rt.chart.length ? Math.max(...rt.chart.map((n) => n.holdEndTime || n.hitTime)) : selectedScore.lengthSec * 1000;
     rt.chartEndMs = Math.max(lastHit + 1800, selectedScore.lengthSec * 1000);
     rt.possiblePoints = rt.chart.reduce((s, n) => s + (n.durationMs > 0 ? 2200 : 1000), 0);
@@ -839,7 +851,7 @@ export default function App(): JSX.Element {
 
   function getSongTimeMs(): number {
     const rt = runtimeRef.current;
-    const raw = !rt.useSynthBgm && rt.audio && !rt.audio.paused && Number.isFinite(rt.audio.currentTime)
+    const raw = !rt.useSynthBgm && rt.audio && Number.isFinite(rt.audio.currentTime)
       ? rt.audio.currentTime * 1000
       : performance.now() - rt.startedAt;
     return raw + settingsRef.current.timingOffsetMs;
@@ -847,7 +859,7 @@ export default function App(): JSX.Element {
 
   function getRawSongTimeMs(): number {
     const rt = runtimeRef.current;
-    return !rt.useSynthBgm && rt.audio && !rt.audio.paused && Number.isFinite(rt.audio.currentTime)
+    return !rt.useSynthBgm && rt.audio && Number.isFinite(rt.audio.currentTime)
       ? rt.audio.currentTime * 1000
       : performance.now() - rt.startedAt;
   }
@@ -1063,6 +1075,15 @@ export default function App(): JSX.Element {
     }
     const rawMs = getRawSongTimeMs();
     const now = getSongTimeMs();
+    const audioEnded = !!(
+      rt.audio &&
+      !rt.useSynthBgm &&
+      (rt.audio.ended || (Number.isFinite(rt.audio.duration) && rt.audio.duration > 0 && rt.audio.currentTime >= rt.audio.duration - 0.02))
+    );
+    if (audioEnded) {
+      stopGame();
+      return;
+    }
     tickSynthBgm(rawMs);
     updateHoldNotes(now);
     updateNotes(now);
