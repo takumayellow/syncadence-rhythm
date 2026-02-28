@@ -40,6 +40,7 @@ const defaultScore: ScoreMeta = {
 type Runtime = {
   chart: PlayNote[];
   chartEndMs: number;
+  mediaDurationMs: number;
   gameRunning: boolean;
   startedAt: number;
   rafId: number | null;
@@ -98,6 +99,23 @@ function quantizeBeat(x: number): number {
   return best;
 }
 
+function estimateBpmFromTimedEvents(events: ScoreEvent[]): number {
+  const times = events
+    .map((e) => e.timeMs)
+    .filter((t): t is number => Number.isFinite(t))
+    .sort((a, b) => a - b);
+  if (times.length < 4) return 120;
+  const diffs: number[] = [];
+  for (let i = 1; i < times.length; i += 1) {
+    const d = times[i] - times[i - 1];
+    if (d > 70 && d < 1600) diffs.push(d);
+  }
+  if (!diffs.length) return 120;
+  const m = median(diffs);
+  const bpm = 60000 / Math.max(1, m);
+  return Math.max(50, Math.min(180, bpm));
+}
+
 function isMidiUrl(url: string): boolean {
   return /\.mid(i)?$/i.test(url);
 }
@@ -153,7 +171,7 @@ function simplifyEventsForRhythm(events: ScoreEvent[], bpm: number): ScoreEvent[
   }
 
   selected.sort((a, b) => (a.timeMs as number) - (b.timeMs as number));
-  const minGap = Math.max(130, beatMs / 3);
+  const minGap = Math.max(170, beatMs * 0.45);
   const thinned: ScoreEvent[] = [];
   for (const e of selected) {
     const prev = thinned[thinned.length - 1];
@@ -195,6 +213,46 @@ function removeOverlapsWithLongNotes(notes: PlayNote[]): PlayNote[] {
   }
 
   return kept;
+}
+
+function fitChartToSongDuration(chart: PlayNote[], mediaDurationMs: number): PlayNote[] {
+  if (!chart.length || !Number.isFinite(mediaDurationMs) || mediaDurationMs <= 0) return chart;
+  const sorted = [...chart].sort((a, b) => a.hitTime - b.hitTime);
+  const first = sorted[0].hitTime;
+  const last = Math.max(...sorted.map((n) => Math.max(n.hitTime, n.holdEndTime)));
+  const desiredFirst = 1200;
+  const desiredLast = Math.max(desiredFirst + 500, mediaDurationMs - 80);
+
+  if (last <= first + 50) {
+    const shift = desiredFirst - first;
+    return sorted.map((n) => ({
+      ...n,
+      hitTime: n.hitTime + shift,
+      holdEndTime: n.holdEndTime + shift,
+      durationMs: Math.max(0, n.holdEndTime + shift - (n.hitTime + shift)),
+    }));
+  }
+
+  const scale = (desiredLast - desiredFirst) / (last - first);
+  const useScale = Number.isFinite(scale) && scale > 0.72 && scale < 1.35;
+  const adjusted = sorted.map((n) => {
+    const mapT = (t: number) => {
+      if (!useScale) return t + (desiredFirst - first);
+      return Math.round(desiredFirst + (t - first) * scale);
+    };
+    const hit = mapT(n.hitTime);
+    const end = mapT(n.holdEndTime);
+    const clampedHit = Math.max(0, Math.min(desiredLast, hit));
+    const clampedEnd = Math.max(clampedHit, Math.min(desiredLast, end));
+    return {
+      ...n,
+      hitTime: clampedHit,
+      holdEndTime: clampedEnd,
+      durationMs: Math.max(0, clampedEnd - clampedHit),
+    };
+  });
+
+  return adjusted.filter((n) => n.hitTime <= desiredLast + 20);
 }
 
 function chooseLaneFromMidi(midi: number, minMidi: number, maxMidi: number): number {
@@ -281,7 +339,29 @@ async function fetchMidiEvents(meta: ScoreMeta): Promise<ScoreEvent[]> {
 }
 
 function mergeScoreAndMidi(scoreEvents: ScoreEvent[], midiEvents: ScoreEvent[]): ScoreEvent[] {
-  // Keep timing strictly synchronized to audio by prioritizing MIDI times when available.
+  // If both exist, keep the score note order/pitch while mapping timestamps from MIDI.
+  if (scoreEvents.length && midiEvents.length) {
+    const sLen = scoreEvents.length;
+    const mLen = midiEvents.length;
+    if (sLen === 1) {
+      const m = midiEvents[0];
+      return [{
+        ...scoreEvents[0],
+        timeMs: m.timeMs,
+        durationMs: m.durationMs,
+      }];
+    }
+    return scoreEvents.map((s, i) => {
+      const ratio = i / Math.max(1, sLen - 1);
+      const mIdx = Math.max(0, Math.min(mLen - 1, Math.round(ratio * (mLen - 1))));
+      const m = midiEvents[mIdx];
+      return {
+        ...s,
+        timeMs: m.timeMs,
+        durationMs: m.durationMs,
+      };
+    });
+  }
   if (midiEvents.length) return midiEvents;
   if (scoreEvents.length) return scoreEvents;
   return midiEvents;
@@ -293,7 +373,7 @@ export default function App(): JSX.Element {
   const laneVisualRefs = useRef<SVGPolygonElement[]>([]);
 
   const settingsRef = useRef({
-    noteSpeed: 10.5,
+    noteSpeed: 12,
     timingOffsetMs: 0,
     chartTempoBpm: 66,
     judgeLineOffsetPx: 110,
@@ -302,6 +382,7 @@ export default function App(): JSX.Element {
   const runtimeRef = useRef<Runtime>({
     chart: [],
     chartEndMs: defaultScore.lengthSec * 1000,
+    mediaDurationMs: defaultScore.lengthSec * 1000,
     gameRunning: false,
     startedAt: 0,
     rafId: null,
@@ -340,7 +421,7 @@ export default function App(): JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
   const [customAudioName, setCustomAudioName] = useState<string>("");
-  const [noteSpeed, setNoteSpeed] = useState(10.5);
+  const [noteSpeed, setNoteSpeed] = useState(12);
   const [timingOffsetMs, setTimingOffsetMs] = useState(0);
   const [chartTempoBpm, setChartTempoBpmState] = useState(66);
   const [judgeLineOffsetPx, setJudgeLineOffsetPxState] = useState(110);
@@ -365,7 +446,7 @@ export default function App(): JSX.Element {
     const savedTiming = Number(localStorage.getItem("pjsk_timing_offset_ms"));
     const savedTempo = Number(localStorage.getItem("pjsk_chart_tempo_bpm"));
     const savedJudge = Number(localStorage.getItem("pjsk_judge_line_px"));
-    if (Number.isFinite(savedSpeed) && savedSpeed >= 6 && savedSpeed <= 12) setNoteSpeed(savedSpeed);
+    if (Number.isFinite(savedSpeed) && savedSpeed >= 6 && savedSpeed <= 15) setNoteSpeed(savedSpeed);
     if (Number.isFinite(savedTiming) && savedTiming >= -300 && savedTiming <= 300) setTimingOffsetMs(savedTiming);
     if (Number.isFinite(savedTempo) && savedTempo >= 50 && savedTempo <= 110) setChartTempoBpmState(savedTempo);
     if (Number.isFinite(savedJudge) && savedJudge >= 70 && savedJudge <= 180) setJudgeLineOffsetPxState(savedJudge);
@@ -426,6 +507,9 @@ export default function App(): JSX.Element {
       .then((all) => {
         const scoreEvents = all[0].status === "fulfilled" ? all[0].value : [];
         const midiEvents = all[1].status === "fulfilled" ? all[1].value : [];
+        if (midiEvents.length) {
+          setChartTempoBpmState(estimateBpmFromTimedEvents(midiEvents));
+        }
         rt.midiPlaybackEvents = midiEvents;
         rt.importedEvents = mergeScoreAndMidi(scoreEvents, midiEvents);
         if (rt.importedEvents.length > 0) {
@@ -639,21 +723,10 @@ export default function App(): JSX.Element {
   function rebuildChartForCurrentTime(): void {
     const rt = runtimeRef.current;
     const now = rt.gameRunning ? getSongTimeMs() : 0;
-    rt.chart = eventsToNotes(getCurrentEvents(), settingsRef.current.chartTempoBpm);
-    if (rt.chart.length) {
-      const firstHit = Math.min(...rt.chart.map((n) => n.hitTime));
-      const desiredFirstHit = 1200;
-      if (firstHit < desiredFirstHit) {
-        const shift = desiredFirstHit - firstHit;
-        rt.chart = rt.chart.map((n) => ({
-          ...n,
-          hitTime: n.hitTime + shift,
-          holdEndTime: n.holdEndTime + shift,
-        }));
-      }
-    }
-    const lastHit = rt.chart.length ? Math.max(...rt.chart.map((n) => n.holdEndTime || n.hitTime)) : selectedScore.lengthSec * 1000;
-    rt.chartEndMs = Math.max(lastHit + 1800, selectedScore.lengthSec * 1000);
+    const baseChart = eventsToNotes(getCurrentEvents(), settingsRef.current.chartTempoBpm);
+    rt.chart = fitChartToSongDuration(baseChart, rt.mediaDurationMs);
+    const lastHit = rt.chart.length ? Math.max(...rt.chart.map((n) => n.holdEndTime || n.hitTime)) : rt.mediaDurationMs;
+    rt.chartEndMs = Math.min(lastHit + 120, rt.mediaDurationMs + 120);
     rt.possiblePoints = rt.chart.reduce((s, n) => s + (n.durationMs > 0 ? 2200 : 1000), 0);
     if (notesLayerRef.current) notesLayerRef.current.innerHTML = "";
     for (const note of rt.chart) {
@@ -668,6 +741,7 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     rt.gameRunning = false;
     rt.awaitingAudioStart = false;
+    rt.mediaDurationMs = selectedScore.lengthSec * 1000;
     if (rt.rafId) cancelAnimationFrame(rt.rafId);
     rt.countdown.forEach((t) => clearTimeout(t));
     rt.countdown = [];
@@ -684,6 +758,14 @@ export default function App(): JSX.Element {
       rt.audio = new Audio(effectiveAudio);
       rt.audio.preload = "auto";
       rt.audio.crossOrigin = "anonymous";
+      rt.audio.onloadedmetadata = () => {
+        if (!rt.audio) return;
+        const d = rt.audio.duration;
+        if (Number.isFinite(d) && d > 0) {
+          rt.mediaDurationMs = d * 1000;
+          if (!rt.gameRunning) rebuildChartForCurrentTime();
+        }
+      };
     }
     rt.score = 0;
     rt.combo = 0;
@@ -1313,7 +1395,7 @@ export default function App(): JSX.Element {
           <h2>Settings</h2>
           <label>Note Speed</label>
           <div className="speed-row">
-            <input type="range" min={6} max={12} step={0.1} value={noteSpeed} onChange={(e) => setNoteSpeed(Number(e.target.value))} />
+            <input type="range" min={6} max={15} step={0.1} value={noteSpeed} onChange={(e) => setNoteSpeed(Number(e.target.value))} />
             <span>{noteSpeed.toFixed(1)}</span>
           </div>
           <label>Timing Offset (ms)</label>
