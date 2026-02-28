@@ -60,6 +60,7 @@ type Runtime = {
   combo: number;
   score: number;
   useSynthBgm: boolean;
+  awaitingAudioStart: boolean;
 };
 
 function laneCenterAtDepth(lane: number, depth: number, width: number): number {
@@ -280,20 +281,8 @@ async function fetchMidiEvents(meta: ScoreMeta): Promise<ScoreEvent[]> {
 }
 
 function mergeScoreAndMidi(scoreEvents: ScoreEvent[], midiEvents: ScoreEvent[]): ScoreEvent[] {
-  if (scoreEvents.length && midiEvents.length) {
-    const n = Math.min(scoreEvents.length, midiEvents.length);
-    const out: ScoreEvent[] = [];
-    for (let i = 0; i < n; i += 1) {
-      out.push({
-        beatPos: scoreEvents[i].beatPos,
-        durationBeats: scoreEvents[i].durationBeats,
-        midi: scoreEvents[i].midi,
-        timeMs: midiEvents[i].timeMs,
-        durationMs: midiEvents[i].durationMs,
-      });
-    }
-    return out;
-  }
+  // Keep timing strictly synchronized to audio by prioritizing MIDI times when available.
+  if (midiEvents.length) return midiEvents;
   if (scoreEvents.length) return scoreEvents;
   return midiEvents;
 }
@@ -333,6 +322,7 @@ export default function App(): JSX.Element {
     combo: 0,
     score: 0,
     useSynthBgm: false,
+    awaitingAudioStart: false,
   });
 
   const [scores, setScores] = useState<ScoreMeta[]>([defaultScore]);
@@ -488,13 +478,13 @@ export default function App(): JSX.Element {
       const next = base[i + 1];
       const prevGap = prev ? b.hitTime - prev.hitTime : Number.POSITIVE_INFINITY;
       const nextGap = next ? next.hitTime - b.hitTime : Number.POSITIVE_INFINITY;
-      const longCandidate = b.rawDurationMs >= beatMs * 1.15;
-      const spacingOK = prevGap >= beatMs * 0.55 && nextGap >= beatMs * 0.55;
-      const ratioOK = longCount / Math.max(1, i) < 0.16;
-      const cooldownOK = b.hitTime - lastLongHit >= beatMs * 1.8;
+      const longCandidate = b.rawDurationMs >= beatMs * 0.85;
+      const spacingOK = prevGap >= beatMs * 0.42 && nextGap >= beatMs * 0.42;
+      const ratioOK = longCount / Math.max(1, i) < 0.22;
+      const cooldownOK = b.hitTime - lastLongHit >= beatMs * 1.25;
       let durationMs = 0;
       if (longCandidate && spacingOK && ratioOK && cooldownOK) {
-        durationMs = Math.round(Math.min(beatMs * 2.4, Math.max(beatMs * 0.9, b.rawDurationMs * 0.7)));
+        durationMs = Math.round(Math.min(beatMs * 2.8, Math.max(beatMs * 0.75, b.rawDurationMs * 0.85)));
         longCount += 1;
         lastLongHit = b.hitTime;
       }
@@ -512,7 +502,21 @@ export default function App(): JSX.Element {
         lastStyleKey: "",
       };
     }).sort((a, b) => a.hitTime - b.hitTime);
-    return removeOverlapsWithLongNotes(mapped);
+    let resolved = removeOverlapsWithLongNotes(mapped);
+    const longAfterFilter = resolved.filter((n) => n.durationMs > 0).length;
+    if (longAfterFilter === 0) {
+      let injected = 0;
+      resolved = resolved.map((n, i) => {
+        if (injected >= 8 || i % 10 !== 6) return n;
+        const src = base[i];
+        if (!src || src.rawDurationMs < beatMs * 0.65) return n;
+        injected += 1;
+        const d = Math.round(Math.min(beatMs * 2.1, Math.max(beatMs * 0.7, src.rawDurationMs * 0.65)));
+        return { ...n, durationMs: d, holdEndTime: n.hitTime + d };
+      });
+      resolved = removeOverlapsWithLongNotes(resolved);
+    }
+    return resolved;
   }
 
   function getCurrentEvents(): ScoreEvent[] {
@@ -651,6 +655,7 @@ export default function App(): JSX.Element {
   function resetGame(): void {
     const rt = runtimeRef.current;
     rt.gameRunning = false;
+    rt.awaitingAudioStart = false;
     if (rt.rafId) cancelAnimationFrame(rt.rafId);
     rt.countdown.forEach((t) => clearTimeout(t));
     rt.countdown = [];
@@ -805,20 +810,26 @@ export default function App(): JSX.Element {
     }, 1400);
     const t4 = window.setTimeout(() => {
       rt.countdown = [];
-      rt.startedAt = performance.now();
       rt.lastProgressUpdateMs = -1000;
       rt.gameRunning = true;
+      rt.awaitingAudioStart = true;
       setCountdownText("");
       if (rt.audio) {
         rt.audio.currentTime = 0;
         rt.audio.play().then(() => {
           rt.useSynthBgm = false;
+          rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
+          rt.awaitingAudioStart = false;
         }).catch(() => {
           rt.useSynthBgm = true;
+          rt.startedAt = performance.now();
+          rt.awaitingAudioStart = false;
           startSynthBgm();
         });
       } else {
         rt.useSynthBgm = true;
+        rt.startedAt = performance.now();
+        rt.awaitingAudioStart = false;
         startSynthBgm();
       }
       loop();
@@ -953,7 +964,7 @@ export default function App(): JSX.Element {
 
   function pressLane(laneIdx: number): void {
     const rt = runtimeRef.current;
-    if (!rt.gameRunning) return;
+    if (!rt.gameRunning || rt.awaitingAudioStart) return;
     const now = getSongTimeMs();
     let best: { note: PlayNote; abs: number; longHead: boolean } | null = null;
     let lateHold: PlayNote | null = null;
@@ -1046,6 +1057,10 @@ export default function App(): JSX.Element {
   function loop(): void {
     const rt = runtimeRef.current;
     if (!rt.gameRunning) return;
+    if (rt.awaitingAudioStart) {
+      rt.rafId = requestAnimationFrame(loop);
+      return;
+    }
     const rawMs = getRawSongTimeMs();
     const now = getSongTimeMs();
     tickSynthBgm(rawMs);
@@ -1124,6 +1139,15 @@ export default function App(): JSX.Element {
     } catch {
       // ignore
     }
+  }
+
+  function resetTuneForSong(): void {
+    const key = `pjsk_song_tune_${encodeURIComponent(selectedScore.audioUrl || selectedScore.id)}`;
+    localStorage.removeItem(key);
+    setTimingOffsetMs(0);
+    setChartTempoBpmState(selectedScore.bpm || 66);
+    rebuildChartForCurrentTime();
+    setProgress("Reset tune for this song");
   }
 
   useEffect(() => {
@@ -1342,6 +1366,7 @@ export default function App(): JSX.Element {
           </div>
           <p className="settings-hint">`[` / `]` timing, `-` / `=` judge line, `Space` tap</p>
           <button onClick={saveTuneForSong}>SAVE FOR THIS SONG</button>
+          <button onClick={resetTuneForSong}>RESET TUNE</button>
           <button onClick={() => setSettingsOpen(false)}>CLOSE</button>
         </div>
       </div>
