@@ -276,9 +276,15 @@ export default function App(): JSX.Element {
   const [tapTempoMode, setTapTempoMode] = useState(false);
   const [tapTimes, setTapTimes] = useState<number[]>([]);
   const [xmlImportState, setXmlImportState] = useState("no score");
+  const [hitFeedback, setHitFeedback] = useState<{ text: string; className: string; visible: boolean }>({
+    text: "",
+    className: "judge-perfect",
+    visible: false,
+  });
   const [result, setResult] = useState<{show:boolean;state:string;rank:string;acc:string;score:string}>({
     show:false,state:"CLEAR!",rank:"RANK A",acc:"0.0%",score:"0"
   });
+  const feedbackTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
     const savedSpeed = Number(localStorage.getItem("pjsk_note_speed"));
@@ -315,6 +321,14 @@ export default function App(): JSX.Element {
         setScores([defaultScore]);
         setSelectedScoreId(defaultScore.id);
       });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (feedbackTimerRef.current) {
+        clearTimeout(feedbackTimerRef.current);
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -366,18 +380,37 @@ export default function App(): JSX.Element {
     const beatMs = 60000 / bpm;
     const minMidi = Math.min(...simplified.map((e) => e.midi));
     const maxMidi = Math.max(...simplified.map((e) => e.midi));
-    return simplified.map((e) => {
+    const base = simplified.map((e) => {
       const lane = chooseLaneFromMidi(e.midi, minMidi, maxMidi);
       const hitTime = Math.round(
         (selectedScore.offsetMs || 0) + (Number.isFinite(e.timeMs) ? (e.timeMs as number) : e.beatPos * beatMs)
       );
-      const rawDurationMs = Number.isFinite(e.durationMs) ? (e.durationMs as number) : e.durationBeats * beatMs;
-      const durationMs = rawDurationMs >= 220 ? Math.round(rawDurationMs) : 0;
+      const rawDurationMs = Math.max(0, Number.isFinite(e.durationMs) ? (e.durationMs as number) : e.durationBeats * beatMs);
+      return { lane, hitTime, rawDurationMs };
+    }).sort((a, b) => a.hitTime - b.hitTime);
+
+    let longCount = 0;
+    let lastLongHit = -10_000_000;
+    return base.map((b, i) => {
+      const prev = base[i - 1];
+      const next = base[i + 1];
+      const prevGap = prev ? b.hitTime - prev.hitTime : Number.POSITIVE_INFINITY;
+      const nextGap = next ? next.hitTime - b.hitTime : Number.POSITIVE_INFINITY;
+      const longCandidate = b.rawDurationMs >= beatMs * 1.15;
+      const spacingOK = prevGap >= beatMs * 0.55 && nextGap >= beatMs * 0.55;
+      const ratioOK = longCount / Math.max(1, i) < 0.16;
+      const cooldownOK = b.hitTime - lastLongHit >= beatMs * 1.8;
+      let durationMs = 0;
+      if (longCandidate && spacingOK && ratioOK && cooldownOK) {
+        durationMs = Math.round(Math.min(beatMs * 2.4, Math.max(beatMs * 0.9, b.rawDurationMs * 0.7)));
+        longCount += 1;
+        lastLongHit = b.hitTime;
+      }
       return {
-        lane,
-        hitTime,
+        lane: b.lane,
+        hitTime: b.hitTime,
         durationMs,
-        holdEndTime: hitTime + durationMs,
+        holdEndTime: b.hitTime + durationMs,
         judged: false,
         holding: false,
         holdBroken: false,
@@ -422,18 +455,59 @@ export default function App(): JSX.Element {
       window.setTimeout(() => {
         if (!runtimeRef.current.gameRunning || !runtimeRef.current.audioCtx) return;
         const freq = midiToFreq(e.midi);
-        const dur = Math.max(0.08, Math.min(2.8, ((e.durationMs ?? 180) / 1000) * 0.9));
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = "triangle";
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.01);
-        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start();
-        osc.stop(ctx.currentTime + dur + 0.03);
+        const dur = Math.max(0.12, Math.min(3.2, ((e.durationMs ?? 220) / 1000) * 0.85));
+        const now = ctx.currentTime;
+
+        const mix = ctx.createGain();
+        const env = ctx.createGain();
+        const filter = ctx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.value = 3200;
+        filter.Q.value = 0.8;
+        mix.connect(filter);
+        filter.connect(env);
+        env.connect(ctx.destination);
+
+        const o1 = ctx.createOscillator();
+        o1.type = "sine";
+        o1.frequency.value = freq;
+        const g1 = ctx.createGain();
+        g1.gain.value = 0.58;
+        o1.connect(g1);
+        g1.connect(mix);
+
+        const o2 = ctx.createOscillator();
+        o2.type = "triangle";
+        o2.frequency.value = freq * 2;
+        const g2 = ctx.createGain();
+        g2.gain.value = 0.18;
+        o2.connect(g2);
+        g2.connect(mix);
+
+        const o3 = ctx.createOscillator();
+        o3.type = "sine";
+        o3.frequency.value = freq * 0.5;
+        const g3 = ctx.createGain();
+        g3.gain.value = 0.12;
+        o3.connect(g3);
+        g3.connect(mix);
+
+        const attack = 0.018;
+        const decay = 0.16;
+        const release = Math.min(0.45, dur * 0.5);
+        const sustain = 0.18;
+        env.gain.setValueAtTime(0.0001, now);
+        env.gain.exponentialRampToValueAtTime(0.24, now + attack);
+        env.gain.exponentialRampToValueAtTime(sustain, now + attack + decay);
+        env.gain.setValueAtTime(sustain, now + Math.max(attack + decay, dur - release));
+        env.gain.exponentialRampToValueAtTime(0.0001, now + dur);
+
+        o1.start(now);
+        o2.start(now);
+        o3.start(now);
+        o1.stop(now + dur + 0.02);
+        o2.stop(now + dur + 0.02);
+        o3.stop(now + dur + 0.02);
       }, Math.max(0, Math.round(e.timeMs ?? 0)))
     );
   }
@@ -491,6 +565,7 @@ export default function App(): JSX.Element {
     setJudge("-");
     setProgress("Ready");
     setResult((r) => ({ ...r, show: false }));
+    setHitFeedback((v) => ({ ...v, visible: false }));
     rebuildChartForCurrentTime();
   }
 
@@ -500,6 +575,21 @@ export default function App(): JSX.Element {
     if (abs <= JUDGE_WINDOWS.good) return "good";
     if (abs <= JUDGE_WINDOWS.miss) return "miss";
     return null;
+  }
+
+  function showHitFeedback(j: Judge): void {
+    if (feedbackTimerRef.current) {
+      clearTimeout(feedbackTimerRef.current);
+    }
+    setHitFeedback({
+      text: j.toUpperCase(),
+      className: `judge-${j}`,
+      visible: true,
+    });
+    feedbackTimerRef.current = window.setTimeout(() => {
+      setHitFeedback((prev) => ({ ...prev, visible: false }));
+      feedbackTimerRef.current = null;
+    }, 240);
   }
 
   function applyJudge(note: PlayNote, j: Judge): void {
@@ -519,6 +609,7 @@ export default function App(): JSX.Element {
     }
     setScore(rt.score);
     setCombo(rt.combo);
+    showHitFeedback(j);
   }
 
   function judgeLongHead(note: PlayNote, j: Judge): void {
@@ -538,6 +629,7 @@ export default function App(): JSX.Element {
     setJudge(j.toUpperCase());
     setScore(rt.score);
     setCombo(rt.combo);
+    showHitFeedback(j);
   }
 
   function judgeLongTail(note: PlayNote, success: boolean): void {
@@ -552,10 +644,12 @@ export default function App(): JSX.Element {
       rt.score += 1200 + rt.combo * 10;
       rt.achievedPoints += 1200;
       setJudge("PERFECT");
+      showHitFeedback("perfect");
     } else {
       rt.combo = 0;
       rt.missCount += 1;
       setJudge("MISS");
+      showHitFeedback("miss");
     }
     setScore(rt.score);
     setCombo(rt.combo);
@@ -777,6 +871,7 @@ export default function App(): JSX.Element {
       rt.missCount += 1;
       setJudge("MISS");
       setCombo(0);
+      showHitFeedback("miss");
     }
   }
 
@@ -1003,9 +1098,12 @@ export default function App(): JSX.Element {
               ))}
             </div>
             <div id="notes-layer" ref={notesLayerRef} />
+            <div className={`hit-feedback ${hitFeedback.visible ? "" : "hidden"} ${hitFeedback.className}`}>
+              {hitFeedback.text}
+            </div>
             <div className={`result-overlay ${result.show ? "" : "hidden"}`} aria-hidden={!result.show}>
               <div className="result-card">
-                <p className="result-state">{result.state}</p>
+                <p className={`result-state ${result.state === "CLEAR!" ? "judge-great" : "judge-miss"}`}>{result.state}</p>
                 <p className="result-rank">{result.rank}</p>
                 <p className="result-score">SCORE {result.score}</p>
                 <p className="result-meta">ACCURACY {result.acc}</p>
