@@ -167,6 +167,33 @@ function simplifyEventsForRhythm(events: ScoreEvent[], bpm: number): ScoreEvent[
   return thinned;
 }
 
+function removeOverlapsWithLongNotes(notes: PlayNote[]): PlayNote[] {
+  if (!notes.length) return notes;
+  const sorted = [...notes].sort((a, b) => a.hitTime - b.hitTime);
+  const kept: PlayNote[] = [];
+  const holdWindows: Array<{ start: number; end: number; lane: number }> = [];
+  const headGuard = 40;
+  const tailGuard = 90;
+
+  for (const n of sorted) {
+    if (n.durationMs > 0) {
+      const overlapLong = holdWindows.some(
+        (w) => n.lane === w.lane && n.hitTime < w.end + 80 && n.holdEndTime > w.start - 80
+      );
+      if (overlapLong) continue;
+      kept.push(n);
+      holdWindows.push({ start: n.hitTime - headGuard, end: n.holdEndTime + tailGuard, lane: n.lane });
+      continue;
+    }
+
+    const overlapTap = holdWindows.some((w) => n.lane === w.lane && n.hitTime >= w.start && n.hitTime <= w.end);
+    if (overlapTap) continue;
+    kept.push(n);
+  }
+
+  return kept;
+}
+
 function chooseLaneFromMidi(midi: number, minMidi: number, maxMidi: number): number {
   const tNorm = (midi - minMidi) / Math.max(1, maxMidi - minMidi);
   return Math.max(0, Math.min(3, Math.floor(tNorm * 4)));
@@ -391,7 +418,7 @@ export default function App(): JSX.Element {
 
     let longCount = 0;
     let lastLongHit = -10_000_000;
-    return base.map((b, i) => {
+    const mapped = base.map((b, i) => {
       const prev = base[i - 1];
       const next = base[i + 1];
       const prevGap = prev ? b.hitTime - prev.hitTime : Number.POSITIVE_INFINITY;
@@ -420,6 +447,7 @@ export default function App(): JSX.Element {
         lastStyleKey: "",
       };
     }).sort((a, b) => a.hitTime - b.hitTime);
+    return removeOverlapsWithLongNotes(mapped);
   }
 
   function getCurrentEvents(): ScoreEvent[] {
