@@ -1,0 +1,1093 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import { parseMusicXml } from "./musicxml";
+import { parseMidi } from "./midi";
+import { extractMusicXmlFromMxl } from "./mxl";
+import type { Judge, PlayNote, ScoreEvent, ScoreMeta } from "./types";
+
+const LANE_COUNT = 4;
+const HIT_KEYS = ["KeyD", "KeyF", "KeyJ", "KeyK"];
+const BASE_APPROACH_MS = 2100;
+const NOTE_BASE_WIDTH = 118;
+
+const JUDGE_WINDOWS = {
+  perfect: 45,
+  great: 95,
+  good: 150,
+  miss: 210,
+};
+
+const HOLD_EARLY_RELEASE_TOLERANCE_MS = 70;
+
+const SCORE_MAP: Record<Judge, number> = {
+  perfect: 1000,
+  great: 700,
+  good: 400,
+  miss: 0,
+};
+
+const defaultScore: ScoreMeta = {
+  id: "lian-ai-cai-pan-40mp",
+  title: "lian-ai-cai-pan-40mp",
+  artist: "Score + MIDI",
+  audioUrl: "/scores/xml/lian-ai-cai-pan-40mp.mid",
+  mxlPath: "/scores/xml/lian-ai-cai-pan-40mp.mxl",
+  midiPath: "/scores/xml/lian-ai-cai-pan-40mp.mid",
+  offsetMs: 0,
+  bpm: 120,
+  lengthSec: 240,
+};
+
+type Runtime = {
+  chart: PlayNote[];
+  chartEndMs: number;
+  gameRunning: boolean;
+  startedAt: number;
+  rafId: number | null;
+  audio: HTMLAudioElement | null;
+  audioCtx: AudioContext | null;
+  synthTimeouts: number[];
+  countdown: number[];
+  lanePressed: boolean[];
+  laneFlashTokens: number[];
+  importedEvents: ScoreEvent[];
+  midiPlaybackEvents: ScoreEvent[];
+  chartSourceMode: "grid" | "score";
+  achievedPoints: number;
+  possiblePoints: number;
+  missCount: number;
+  combo: number;
+  score: number;
+  useSynthBgm: boolean;
+};
+
+function laneCenterAtDepth(lane: number, depth: number, width: number): number {
+  const center = width / 2;
+  const nearSpread = width * 0.92;
+  const farSpread = width * 0.38;
+  const t = (lane + 0.5) / LANE_COUNT - 0.5;
+  const xNear = center + t * nearSpread;
+  const xFar = center + t * farSpread;
+  return xFar + (xNear - xFar) * depth;
+}
+
+function clamp01(x: number): number {
+  return Math.max(0, Math.min(1, x));
+}
+
+function median(values: number[]): number {
+  if (!values.length) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const m = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
+}
+
+function quantizeBeat(x: number): number {
+  const cands = [1, 0.5, 1 / 3];
+  let best = cands[0];
+  let bestDiff = Math.abs(x - best);
+  for (const c of cands) {
+    const d = Math.abs(x - c);
+    if (d < bestDiff) {
+      best = c;
+      bestDiff = d;
+    }
+  }
+  return best;
+}
+
+function isMidiUrl(url: string): boolean {
+  return /\.mid(i)?$/i.test(url);
+}
+
+function simplifyEventsForRhythm(events: ScoreEvent[], bpm: number): ScoreEvent[] {
+  if (!events.length) return [];
+  const beatMs = 60000 / Math.max(1, bpm);
+  const quarter = beatMs;
+  const eighth = beatMs / 2;
+  const triplet = beatMs / 3;
+  const snapChoices = [quarter, eighth, triplet];
+  const absEvents = events
+    .map((e) => {
+      const timeMs = Number.isFinite(e.timeMs) ? (e.timeMs as number) : e.beatPos * beatMs;
+      const durMs = Number.isFinite(e.durationMs) ? (e.durationMs as number) : e.durationBeats * beatMs;
+      return { ...e, timeMs, durationMs: Math.max(0, durMs) };
+    })
+    .sort((a, b) => (a.timeMs as number) - (b.timeMs as number));
+
+  const snapped = absEvents.map((e) => {
+    const t = e.timeMs as number;
+    let bestTime = t;
+    let bestDiff = Number.POSITIVE_INFINITY;
+    for (const g of snapChoices) {
+      const s = Math.round(t / g) * g;
+      const d = Math.abs(t - s);
+      if (d < bestDiff) {
+        bestDiff = d;
+        bestTime = s;
+      }
+    }
+    return { ...e, timeMs: bestTime };
+  });
+
+  const grouped = new Map<number, ScoreEvent[]>();
+  for (const e of snapped) {
+    const key = Math.round((e.timeMs as number) / 18);
+    const list = grouped.get(key) ?? [];
+    list.push(e);
+    grouped.set(key, list);
+  }
+
+  const selected: ScoreEvent[] = [];
+  for (const [k, list] of grouped) {
+    const t = k * 18;
+    const byPitch = [...list].sort((a, b) => a.midi - b.midi);
+    const melodyLike = byPitch[Math.min(byPitch.length - 1, Math.floor(byPitch.length * 0.68))];
+    const out = [melodyLike].map((e) => ({
+      ...e,
+      timeMs: t,
+    }));
+    selected.push(...out);
+  }
+
+  selected.sort((a, b) => (a.timeMs as number) - (b.timeMs as number));
+  const minGap = Math.max(130, beatMs / 3);
+  const thinned: ScoreEvent[] = [];
+  for (const e of selected) {
+    const prev = thinned[thinned.length - 1];
+    if (!prev) {
+      thinned.push(e);
+      continue;
+    }
+    const dt = (e.timeMs as number) - (prev.timeMs as number);
+    if (dt < minGap) {
+      continue;
+    }
+    thinned.push(e);
+  }
+  return thinned;
+}
+
+function chooseLaneFromMidi(midi: number, minMidi: number, maxMidi: number): number {
+  const tNorm = (midi - minMidi) / Math.max(1, maxMidi - minMidi);
+  return Math.max(0, Math.min(3, Math.floor(tNorm * 4)));
+}
+
+async function fetchMusicXml(meta: ScoreMeta): Promise<ScoreEvent[]> {
+  if (meta.mxlPath) {
+    const res = await fetch(meta.mxlPath);
+    if (!res.ok) throw new Error("mxl not found");
+    const xml = await extractMusicXmlFromMxl(await res.arrayBuffer());
+    return parseMusicXml(xml);
+  }
+  if (meta.xmlPath) {
+    const res = await fetch(meta.xmlPath);
+    if (!res.ok) throw new Error("xml not found");
+    return parseMusicXml(await res.text());
+  }
+  return [];
+}
+
+async function fetchMidiEvents(meta: ScoreMeta): Promise<ScoreEvent[]> {
+  if (!meta.midiPath) return [];
+  const res = await fetch(meta.midiPath);
+  if (!res.ok) throw new Error("midi not found");
+  const midiNotes = parseMidi(await res.arrayBuffer());
+  return midiNotes.map((n) => ({
+    beatPos: 0,
+    durationBeats: 0,
+    midi: n.midi,
+    timeMs: n.timeMs,
+    durationMs: n.durationMs,
+  }));
+}
+
+function mergeScoreAndMidi(scoreEvents: ScoreEvent[], midiEvents: ScoreEvent[]): ScoreEvent[] {
+  if (scoreEvents.length && midiEvents.length) {
+    const n = Math.min(scoreEvents.length, midiEvents.length);
+    const out: ScoreEvent[] = [];
+    for (let i = 0; i < n; i += 1) {
+      out.push({
+        beatPos: scoreEvents[i].beatPos,
+        durationBeats: scoreEvents[i].durationBeats,
+        midi: scoreEvents[i].midi,
+        timeMs: midiEvents[i].timeMs,
+        durationMs: midiEvents[i].durationMs,
+      });
+    }
+    return out;
+  }
+  if (scoreEvents.length) return scoreEvents;
+  return midiEvents;
+}
+
+export default function App(): JSX.Element {
+  const playfieldRef = useRef<HTMLDivElement>(null);
+  const notesLayerRef = useRef<HTMLDivElement>(null);
+  const laneVisualRefs = useRef<SVGPolygonElement[]>([]);
+
+  const settingsRef = useRef({
+    noteSpeed: 10.5,
+    timingOffsetMs: 0,
+    chartTempoBpm: 66,
+    judgeLineOffsetPx: 110,
+  });
+
+  const runtimeRef = useRef<Runtime>({
+    chart: [],
+    chartEndMs: defaultScore.lengthSec * 1000,
+    gameRunning: false,
+    startedAt: 0,
+    rafId: null,
+    audio: null,
+    audioCtx: null,
+    synthTimeouts: [],
+    countdown: [],
+    lanePressed: [false, false, false, false],
+    laneFlashTokens: [0, 0, 0, 0],
+    importedEvents: [],
+    midiPlaybackEvents: [],
+    chartSourceMode: "grid",
+    achievedPoints: 0,
+    possiblePoints: 0,
+    missCount: 0,
+    combo: 0,
+    score: 0,
+    useSynthBgm: false,
+  });
+
+  const [scores, setScores] = useState<ScoreMeta[]>([defaultScore]);
+  const [selectedScoreId, setSelectedScoreId] = useState(defaultScore.id);
+  const selectedScore = useMemo(
+    () => scores.find((s) => s.id === selectedScoreId) ?? defaultScore,
+    [scores, selectedScoreId]
+  );
+
+  const [score, setScore] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [judge, setJudge] = useState("-");
+  const [progress, setProgress] = useState("Ready");
+  const [songTitle, setSongTitle] = useState("Loading...");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [noteSpeed, setNoteSpeed] = useState(10.5);
+  const [timingOffsetMs, setTimingOffsetMs] = useState(0);
+  const [chartTempoBpm, setChartTempoBpmState] = useState(66);
+  const [judgeLineOffsetPx, setJudgeLineOffsetPxState] = useState(110);
+  const [tapTempoState, setTapTempoState] = useState("idle");
+  const [tapTempoMode, setTapTempoMode] = useState(false);
+  const [tapTimes, setTapTimes] = useState<number[]>([]);
+  const [xmlImportState, setXmlImportState] = useState("no score");
+  const [result, setResult] = useState<{show:boolean;state:string;rank:string;acc:string;score:string}>({
+    show:false,state:"CLEAR!",rank:"RANK A",acc:"0.0%",score:"0"
+  });
+
+  useEffect(() => {
+    const savedSpeed = Number(localStorage.getItem("pjsk_note_speed"));
+    const savedTiming = Number(localStorage.getItem("pjsk_timing_offset_ms"));
+    const savedTempo = Number(localStorage.getItem("pjsk_chart_tempo_bpm"));
+    const savedJudge = Number(localStorage.getItem("pjsk_judge_line_px"));
+    if (Number.isFinite(savedSpeed) && savedSpeed >= 6 && savedSpeed <= 12) setNoteSpeed(savedSpeed);
+    if (Number.isFinite(savedTiming) && savedTiming >= -300 && savedTiming <= 300) setTimingOffsetMs(savedTiming);
+    if (Number.isFinite(savedTempo) && savedTempo >= 50 && savedTempo <= 110) setChartTempoBpmState(savedTempo);
+    if (Number.isFinite(savedJudge) && savedJudge >= 70 && savedJudge <= 180) setJudgeLineOffsetPxState(savedJudge);
+  }, []);
+
+  useEffect(() => {
+    settingsRef.current = { noteSpeed, timingOffsetMs, chartTempoBpm, judgeLineOffsetPx };
+    localStorage.setItem("pjsk_note_speed", String(noteSpeed));
+    localStorage.setItem("pjsk_timing_offset_ms", String(Math.round(timingOffsetMs)));
+    localStorage.setItem("pjsk_chart_tempo_bpm", String(chartTempoBpm));
+    localStorage.setItem("pjsk_judge_line_px", String(Math.round(judgeLineOffsetPx)));
+    if (playfieldRef.current) {
+      playfieldRef.current.style.setProperty("--judge-line-bottom", `${judgeLineOffsetPx}px`);
+    }
+  }, [noteSpeed, timingOffsetMs, chartTempoBpm, judgeLineOffsetPx]);
+
+  useEffect(() => {
+    fetch("/scores/index.json")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("score index not found"))))
+      .then((list: ScoreMeta[]) => {
+        if (Array.isArray(list) && list.length) {
+          setScores(list);
+          setSelectedScoreId(list[0].id);
+        }
+      })
+      .catch(() => {
+        setScores([defaultScore]);
+        setSelectedScoreId(defaultScore.id);
+      });
+  }, []);
+
+  useEffect(() => {
+    setSongTitle(`${selectedScore.title} / ${selectedScore.artist}`);
+    setChartTempoBpmState(selectedScore.bpm || 66);
+    const rt = runtimeRef.current;
+    rt.importedEvents = [];
+    rt.midiPlaybackEvents = [];
+    rt.chartSourceMode = "grid";
+    setXmlImportState("loading...");
+    Promise.allSettled([fetchMusicXml(selectedScore), fetchMidiEvents(selectedScore)])
+      .then((all) => {
+        const scoreEvents = all[0].status === "fulfilled" ? all[0].value : [];
+        const midiEvents = all[1].status === "fulfilled" ? all[1].value : [];
+        rt.midiPlaybackEvents = midiEvents;
+        rt.importedEvents = mergeScoreAndMidi(scoreEvents, midiEvents);
+        if (rt.importedEvents.length > 0) {
+          rt.chartSourceMode = "score";
+          const hasMxl = !!selectedScore.mxlPath;
+          const hasMidi = !!selectedScore.midiPath;
+          const mode = hasMxl && hasMidi ? "mxl+midi synced" : hasMxl ? "mxl" : hasMidi ? "midi" : "xml";
+          setXmlImportState(`score: ${mode}`);
+        } else {
+          setXmlImportState("no score");
+        }
+      })
+      .finally(() => resetGame());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedScoreId]);
+
+  function generateGridEvents(bpm: number): ScoreEvent[] {
+    const flow = [1, 0.5, 1, 1 / 3, 1 / 3, 1 / 3, 1, 0.5, 0.5, 1, 1, 1 / 3, 1 / 3, 1 / 3, 1];
+    const lanes = [1, 2, 3, 2, 1, 0, 1, 2, 3, 2, 1, 2, 3, 2, 1, 0];
+    const beatLimit = Math.floor((selectedScore.lengthSec * bpm) / 60) - 2;
+    const out: ScoreEvent[] = [];
+    let beat = 0;
+    let i = 0;
+    while (beat < beatLimit) {
+      out.push({ beatPos: beat, durationBeats: i % 24 === 8 ? 1.5 : i % 48 === 32 ? 2 : 0.5, midi: 60 + lanes[i % lanes.length] * 2 });
+      beat += quantizeBeat(flow[i % flow.length]);
+      i += 1;
+    }
+    return out;
+  }
+
+  function eventsToNotes(events: ScoreEvent[], bpm: number): PlayNote[] {
+    const simplified = simplifyEventsForRhythm(events, bpm);
+    if (!simplified.length) return [];
+    const beatMs = 60000 / bpm;
+    const minMidi = Math.min(...simplified.map((e) => e.midi));
+    const maxMidi = Math.max(...simplified.map((e) => e.midi));
+    return simplified.map((e) => {
+      const lane = chooseLaneFromMidi(e.midi, minMidi, maxMidi);
+      const hitTime = Math.round(
+        (selectedScore.offsetMs || 0) + (Number.isFinite(e.timeMs) ? (e.timeMs as number) : e.beatPos * beatMs)
+      );
+      const rawDurationMs = Number.isFinite(e.durationMs) ? (e.durationMs as number) : e.durationBeats * beatMs;
+      const durationMs = rawDurationMs >= 220 ? Math.round(rawDurationMs) : 0;
+      return {
+        lane,
+        hitTime,
+        durationMs,
+        holdEndTime: hitTime + durationMs,
+        judged: false,
+        holding: false,
+        holdBroken: false,
+        headJudged: false,
+        tailJudged: false,
+        element: null,
+        lastStyleKey: "",
+      };
+    }).sort((a, b) => a.hitTime - b.hitTime);
+  }
+
+  function getCurrentEvents(): ScoreEvent[] {
+    const rt = runtimeRef.current;
+    if (rt.chartSourceMode === "score" && rt.importedEvents.length) return rt.importedEvents;
+    return generateGridEvents(settingsRef.current.chartTempoBpm);
+  }
+
+  function midiToFreq(midi: number): number {
+    return 440 * Math.pow(2, (midi - 69) / 12);
+  }
+
+  function stopSynthBgm(): void {
+    const rt = runtimeRef.current;
+    rt.synthTimeouts.forEach((id) => clearTimeout(id));
+    rt.synthTimeouts = [];
+    if (rt.audioCtx) {
+      rt.audioCtx.close().catch(() => {});
+      rt.audioCtx = null;
+    }
+  }
+
+  function startSynthBgm(): void {
+    const rt = runtimeRef.current;
+    stopSynthBgm();
+    const source = rt.midiPlaybackEvents.length ? rt.midiPlaybackEvents : getCurrentEvents();
+    const events = source.filter((e) => Number.isFinite(e.timeMs));
+    if (!events.length) return;
+    const ctx = new AudioContext();
+    ctx.resume().catch(() => {});
+    rt.audioCtx = ctx;
+    rt.synthTimeouts = events.map((e) =>
+      window.setTimeout(() => {
+        if (!runtimeRef.current.gameRunning || !runtimeRef.current.audioCtx) return;
+        const freq = midiToFreq(e.midi);
+        const dur = Math.max(0.08, Math.min(2.8, ((e.durationMs ?? 180) / 1000) * 0.9));
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0.0001, ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.12, ctx.currentTime + 0.01);
+        gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start();
+        osc.stop(ctx.currentTime + dur + 0.03);
+      }, Math.max(0, Math.round(e.timeMs ?? 0)))
+    );
+  }
+
+  function createNoteElement(note: PlayNote): void {
+    if (!notesLayerRef.current) return;
+    const el = document.createElement("div");
+    el.className = `note${note.lane % 2 ? " alt" : ""}`;
+    notesLayerRef.current.appendChild(el);
+    note.element = el;
+  }
+
+  function rebuildChartForCurrentTime(): void {
+    const rt = runtimeRef.current;
+    const now = rt.gameRunning ? getSongTimeMs() : 0;
+    rt.chart = eventsToNotes(getCurrentEvents(), settingsRef.current.chartTempoBpm);
+    const lastHit = rt.chart.length ? Math.max(...rt.chart.map((n) => n.holdEndTime || n.hitTime)) : selectedScore.lengthSec * 1000;
+    rt.chartEndMs = Math.max(lastHit + 1800, selectedScore.lengthSec * 1000);
+    rt.possiblePoints = rt.chart.reduce((s, n) => s + (n.durationMs > 0 ? 2200 : 1000), 0);
+    if (notesLayerRef.current) notesLayerRef.current.innerHTML = "";
+    for (const note of rt.chart) {
+      if (note.hitTime < now - JUDGE_WINDOWS.miss && note.durationMs === 0) {
+        note.judged = true;
+        continue;
+      }
+      createNoteElement(note);
+    }
+  }
+
+  function resetGame(): void {
+    const rt = runtimeRef.current;
+    rt.gameRunning = false;
+    if (rt.rafId) cancelAnimationFrame(rt.rafId);
+    rt.countdown.forEach((t) => clearTimeout(t));
+    rt.countdown = [];
+    stopSynthBgm();
+    rt.useSynthBgm = false;
+    if (rt.audio) {
+      rt.audio.pause();
+      rt.audio.currentTime = 0;
+    }
+    if (isMidiUrl(selectedScore.audioUrl)) {
+      rt.audio = null;
+    } else {
+      rt.audio = new Audio(selectedScore.audioUrl);
+      rt.audio.preload = "auto";
+      rt.audio.crossOrigin = "anonymous";
+    }
+    rt.score = 0;
+    rt.combo = 0;
+    rt.achievedPoints = 0;
+    rt.missCount = 0;
+    setScore(0);
+    setCombo(0);
+    setJudge("-");
+    setProgress("Ready");
+    setResult((r) => ({ ...r, show: false }));
+    rebuildChartForCurrentTime();
+  }
+
+  function judgeDelta(abs: number): Judge | null {
+    if (abs <= JUDGE_WINDOWS.perfect) return "perfect";
+    if (abs <= JUDGE_WINDOWS.great) return "great";
+    if (abs <= JUDGE_WINDOWS.good) return "good";
+    if (abs <= JUDGE_WINDOWS.miss) return "miss";
+    return null;
+  }
+
+  function applyJudge(note: PlayNote, j: Judge): void {
+    const rt = runtimeRef.current;
+    note.judged = true;
+    note.element?.remove();
+    setJudge(j.toUpperCase());
+    rt.score += SCORE_MAP[j];
+    if (j === "perfect") rt.achievedPoints += 1000;
+    else if (j === "great") rt.achievedPoints += 800;
+    else if (j === "good") rt.achievedPoints += 550;
+    else rt.missCount += 1;
+    if (j === "miss") rt.combo = 0;
+    else {
+      rt.combo += 1;
+      rt.score += rt.combo * 8;
+    }
+    setScore(rt.score);
+    setCombo(rt.combo);
+  }
+
+  function judgeLongHead(note: PlayNote, j: Judge): void {
+    if (note.headJudged) return;
+    const rt = runtimeRef.current;
+    note.headJudged = true;
+    if (j === "perfect") rt.achievedPoints += 1000;
+    else if (j === "great") rt.achievedPoints += 800;
+    else if (j === "good") rt.achievedPoints += 550;
+    else rt.missCount += 1;
+    if (j === "miss") rt.combo = 0;
+    else {
+      note.holding = true;
+      rt.combo += 1;
+      rt.score += Math.floor((SCORE_MAP[j] || 500) * 0.45) + rt.combo * 6;
+    }
+    setJudge(j.toUpperCase());
+    setScore(rt.score);
+    setCombo(rt.combo);
+  }
+
+  function judgeLongTail(note: PlayNote, success: boolean): void {
+    if (note.tailJudged) return;
+    const rt = runtimeRef.current;
+    note.tailJudged = true;
+    note.holding = false;
+    note.judged = true;
+    note.element?.remove();
+    if (success) {
+      rt.combo += 1;
+      rt.score += 1200 + rt.combo * 10;
+      rt.achievedPoints += 1200;
+      setJudge("PERFECT");
+    } else {
+      rt.combo = 0;
+      rt.missCount += 1;
+      setJudge("MISS");
+    }
+    setScore(rt.score);
+    setCombo(rt.combo);
+  }
+
+  function startGame(): void {
+    const rt = runtimeRef.current;
+    if (rt.gameRunning || rt.countdown.length) return;
+    setProgress("Counting...");
+    setJudge("-");
+
+    if (rt.audio) {
+      rt.audio.currentTime = 0;
+      rt.audio.muted = true;
+      rt.audio.play().then(() => {
+        rt.audio?.pause();
+        if (rt.audio) {
+          rt.audio.currentTime = 0;
+          rt.audio.muted = false;
+        }
+      }).catch(() => {
+        if (rt.audio) rt.audio.muted = false;
+      });
+    } else {
+      rt.useSynthBgm = true;
+    }
+
+    const t1 = window.setTimeout(() => setJudge("3"), 0);
+    const t2 = window.setTimeout(() => setJudge("2"), 700);
+    const t3 = window.setTimeout(() => setJudge("1"), 1400);
+    const t4 = window.setTimeout(() => {
+      rt.countdown = [];
+      rt.startedAt = performance.now();
+      rt.gameRunning = true;
+      if (rt.audio) {
+        rt.audio.currentTime = 0;
+        rt.audio.play().then(() => {
+          rt.useSynthBgm = false;
+        }).catch(() => {
+          rt.useSynthBgm = true;
+          startSynthBgm();
+        });
+      } else {
+        rt.useSynthBgm = true;
+        startSynthBgm();
+      }
+      loop();
+    }, 2100);
+    rt.countdown = [t1, t2, t3, t4];
+  }
+
+  function getSongTimeMs(): number {
+    const rt = runtimeRef.current;
+    const raw = !rt.useSynthBgm && rt.audio && !rt.audio.paused && Number.isFinite(rt.audio.currentTime)
+      ? rt.audio.currentTime * 1000
+      : performance.now() - rt.startedAt;
+    return raw + settingsRef.current.timingOffsetMs;
+  }
+
+  function getRawSongTimeMs(): number {
+    const rt = runtimeRef.current;
+    return !rt.useSynthBgm && rt.audio && !rt.audio.paused && Number.isFinite(rt.audio.currentTime)
+      ? rt.audio.currentTime * 1000
+      : performance.now() - rt.startedAt;
+  }
+
+  function updateNotes(nowMs: number): void {
+    const rt = runtimeRef.current;
+    const pf = playfieldRef.current;
+    if (!pf) return;
+    const judgeLineY = pf.clientHeight - settingsRef.current.judgeLineOffsetPx;
+    const approachMs = BASE_APPROACH_MS * (10 / settingsRef.current.noteSpeed);
+    const maxAhead = approachMs + 650;
+
+    for (const note of rt.chart) {
+      if (note.judged) continue;
+      const dt = note.hitTime - nowMs;
+      if (dt > maxAhead) {
+        if (note.element) note.element.style.display = "none";
+        continue;
+      }
+
+      if (note.durationMs > 0) {
+        if (!note.headJudged && nowMs > note.hitTime + JUDGE_WINDOWS.miss) judgeLongHead(note, "miss");
+        if (!note.tailJudged && nowMs > note.holdEndTime + JUDGE_WINDOWS.miss) {
+          judgeLongTail(note, false);
+          continue;
+        }
+      } else if (dt < -JUDGE_WINDOWS.miss) {
+        applyJudge(note, "miss");
+        continue;
+      }
+
+      const headTime = note.holding ? nowMs : note.hitTime;
+      const tailTime = note.durationMs > 0 ? note.holdEndTime : note.hitTime;
+      const headLinear = clamp01(1 - (headTime - nowMs) / approachMs);
+      const tailLinear = clamp01(1 - (tailTime - nowMs) / approachMs);
+      const depthHead = Math.pow(headLinear, 1.15);
+      const depthTail = Math.pow(tailLinear, 1.15);
+      const yHead = 55 + (judgeLineY - 55) * depthHead;
+      const yTail = 55 + (judgeLineY - 55) * depthTail;
+
+      const wHead = NOTE_BASE_WIDTH * (0.58 + depthHead * 1.2);
+      const wTail = NOTE_BASE_WIDTH * (0.58 + depthTail * 1.2);
+      const hHead = 26 * (0.58 + depthHead * 1.2);
+      const hTail = 26 * (0.58 + depthTail * 1.2);
+      const xHead = laneCenterAtDepth(note.lane, depthHead, pf.clientWidth) - wHead / 2;
+      const xTail = laneCenterAtDepth(note.lane, depthTail, pf.clientWidth) - wTail / 2;
+      const skew = (note.lane - 1.5) * -1.8 * (1 - depthHead);
+
+      if (!note.element) continue;
+      let drawX = xHead;
+      let drawY = yHead - hHead / 2;
+      let drawW = wHead;
+      let drawH = hHead;
+      let drawClip = "";
+      let drawTransform = `skewX(${skew.toFixed(2)}deg)`;
+
+      if (note.durationMs > 0) {
+        const left = Math.min(xHead, xTail);
+        const right = Math.max(xHead + wHead, xTail + wTail);
+        const top = Math.min(yTail - hTail / 2, yHead - hHead / 2);
+        const bottom = Math.max(yHead + hHead / 2, yTail + hTail / 2);
+        drawX = left;
+        drawY = top;
+        drawW = right - left;
+        drawH = Math.max(hHead, bottom - top);
+
+        const p1x = ((xTail - left) / drawW) * 100;
+        const p2x = ((xTail + wTail - left) / drawW) * 100;
+        const p3x = ((xHead + wHead - left) / drawW) * 100;
+        const p4x = ((xHead - left) / drawW) * 100;
+        const p1y = (((yTail - hTail / 2) - top) / drawH) * 100;
+        const p3y = (((yHead + hHead / 2) - top) / drawH) * 100;
+        drawClip = `polygon(${p1x}% ${p1y}%, ${p2x}% ${p1y}%, ${p3x}% ${p3y}%, ${p4x}% ${p3y}%)`;
+        drawTransform = "none";
+        note.element.classList.add("long-note");
+      } else {
+        note.element.classList.remove("long-note");
+      }
+
+      const key = [drawX.toFixed(1), drawY.toFixed(1), drawW.toFixed(1), drawH.toFixed(1), drawClip].join("|");
+      if (key !== note.lastStyleKey) {
+        note.lastStyleKey = key;
+        note.element.style.display = "block";
+        note.element.style.left = `${drawX}px`;
+        note.element.style.top = `${drawY}px`;
+        note.element.style.width = `${drawW}px`;
+        note.element.style.height = `${drawH}px`;
+        note.element.style.transform = drawTransform;
+        note.element.style.clipPath = drawClip || "none";
+      }
+    }
+  }
+
+  function updateHoldNotes(nowMs: number): void {
+    const rt = runtimeRef.current;
+    for (const note of rt.chart) {
+      if (note.judged || note.tailJudged) continue;
+      if (note.holding && !rt.lanePressed[note.lane] && nowMs < note.holdEndTime - HOLD_EARLY_RELEASE_TOLERANCE_MS) {
+        note.holdBroken = true;
+        note.holding = false;
+      }
+      if (note.holding && nowMs >= note.holdEndTime) {
+        judgeLongTail(note, !note.holdBroken);
+      }
+    }
+  }
+
+  function pressLane(laneIdx: number): void {
+    const rt = runtimeRef.current;
+    if (!rt.gameRunning) return;
+    const now = getSongTimeMs();
+    let best: { note: PlayNote; abs: number; longHead: boolean } | null = null;
+    let lateHold: PlayNote | null = null;
+
+    for (const note of rt.chart) {
+      if (note.judged || note.lane !== laneIdx) continue;
+      if (note.durationMs > 0) {
+        if (!note.headJudged) {
+          const d = now - note.hitTime;
+          const a = Math.abs(d);
+          if (d < -JUDGE_WINDOWS.miss) break;
+          if (a <= JUDGE_WINDOWS.miss && (!best || a < best.abs)) {
+            best = { note, abs: a, longHead: true };
+            continue;
+          }
+        }
+        if (!note.tailJudged && !note.holding && now > note.hitTime + JUDGE_WINDOWS.miss && now < note.holdEndTime) {
+          lateHold = note;
+        }
+        continue;
+      }
+
+      const d = now - note.hitTime;
+      const a = Math.abs(d);
+      if (d < -JUDGE_WINDOWS.miss) break;
+      if (a <= JUDGE_WINDOWS.miss && (!best || a < best.abs)) {
+        best = { note, abs: a, longHead: false };
+      }
+    }
+
+    if (best) {
+      const j = judgeDelta(best.abs) ?? "miss";
+      if (best.longHead) judgeLongHead(best.note, j);
+      else applyJudge(best.note, j);
+      return;
+    }
+    if (lateHold) {
+      if (!lateHold.headJudged) judgeLongHead(lateHold, "miss");
+      lateHold.holding = true;
+      lateHold.holdBroken = false;
+      return;
+    }
+
+    const hasActive = rt.chart.some((n) => n.lane === laneIdx && n.holding && !n.judged);
+    if (!hasActive) {
+      rt.combo = 0;
+      rt.missCount += 1;
+      setJudge("MISS");
+      setCombo(0);
+    }
+  }
+
+  function flashLane(idx: number): void {
+    laneVisualRefs.current.forEach((el, i) => {
+      if (!el) return;
+      if (i !== idx) el.classList.remove("active");
+    });
+    const target = laneVisualRefs.current[idx];
+    if (!target) return;
+    const rt = runtimeRef.current;
+    rt.laneFlashTokens[idx] += 1;
+    const token = rt.laneFlashTokens[idx];
+    target.classList.add("active");
+    window.setTimeout(() => {
+      if (runtimeRef.current.laneFlashTokens[idx] === token) target.classList.remove("active");
+    }, 80);
+  }
+
+  function calcRank(acc: number): string {
+    if (acc >= 95) return "S";
+    if (acc >= 88) return "A";
+    if (acc >= 78) return "B";
+    if (acc >= 66) return "C";
+    return "D";
+  }
+
+  function stopGame(): void {
+    const rt = runtimeRef.current;
+    rt.gameRunning = false;
+    if (rt.rafId) cancelAnimationFrame(rt.rafId);
+    rt.audio?.pause();
+    stopSynthBgm();
+    setProgress("Finished");
+    const acc = rt.possiblePoints > 0 ? (rt.achievedPoints / rt.possiblePoints) * 100 : 0;
+    const clear = acc >= 72 && rt.missCount < Math.max(30, Math.floor(rt.chart.length * 0.22));
+    setResult({ show: true, state: clear ? "CLEAR!" : "FAILED", rank: `RANK ${calcRank(acc)}`, acc: `${acc.toFixed(1)}%`, score: `${rt.score}` });
+  }
+
+  function loop(): void {
+    const rt = runtimeRef.current;
+    if (!rt.gameRunning) return;
+    const now = getSongTimeMs();
+    updateHoldNotes(now);
+    updateNotes(now);
+    const chartSec = Math.max(1, rt.chartEndMs / 1000);
+    const sec = Math.min(chartSec, now / 1000);
+    setProgress(`Playing ${sec.toFixed(1)}s / ${chartSec.toFixed(1)}s`);
+    if (now >= rt.chartEndMs) {
+      stopGame();
+      return;
+    }
+    rt.rafId = requestAnimationFrame(loop);
+  }
+
+  function toggleTapTempo(): void {
+    setTapTempoMode((v) => !v);
+    setTapTimes([]);
+    setTapTempoState((v) => (v === "idle" ? "tap quarter notes..." : "idle"));
+  }
+
+  function applyTapTempo(): void {
+    if (tapTimes.length < 4) return;
+    const intervals = tapTimes.slice(1).map((t, i) => t - tapTimes[i]);
+    const beatMs = median(intervals);
+    if (!Number.isFinite(beatMs) || beatMs < 350 || beatMs > 1400) {
+      setTapTempoState("failed, retry");
+      return;
+    }
+    const bpm = 60000 / beatMs;
+    setChartTempoBpmState(Math.max(50, Math.min(110, bpm)));
+
+    const baseOffset = selectedScore.offsetMs;
+    const deltas = tapTimes.map((t) => {
+      const k = Math.round((t - baseOffset) / beatMs);
+      return baseOffset + k * beatMs - t;
+    });
+    const delta = deltas.reduce((a, b) => a + b, 0) / deltas.length;
+    setTimingOffsetMs((v) => Math.max(-300, Math.min(300, v + delta)));
+    setTapTempoState(`applied ${Math.max(50, Math.min(110, bpm)).toFixed(1)} BPM`);
+    setTapTempoMode(false);
+    setTapTimes([]);
+    rebuildChartForCurrentTime();
+  }
+
+  function registerTap(): void {
+    if (!tapTempoMode || !runtimeRef.current.gameRunning) return;
+    setTapTimes((prev) => {
+      const next = [...prev, getRawSongTimeMs()].slice(-12);
+      if (next.length >= 8) {
+        window.setTimeout(applyTapTempo, 0);
+      } else {
+        setTapTempoState(`taps: ${next.length}`);
+      }
+      return next;
+    });
+  }
+
+  function saveTuneForSong(): void {
+    const key = `pjsk_song_tune_${encodeURIComponent(selectedScore.audioUrl || selectedScore.id)}`;
+    localStorage.setItem(key, JSON.stringify({ timingOffsetMs, chartTempoBpm }));
+    setProgress("Saved tune for this song");
+  }
+
+  function loadTuneForSong(meta: ScoreMeta): void {
+    const key = `pjsk_song_tune_${encodeURIComponent(meta.audioUrl || meta.id)}`;
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return;
+      const s = JSON.parse(raw) as { timingOffsetMs?: number; chartTempoBpm?: number };
+      if (Number.isFinite(s.timingOffsetMs)) setTimingOffsetMs(Math.max(-300, Math.min(300, Number(s.timingOffsetMs))));
+      if (Number.isFinite(s.chartTempoBpm)) setChartTempoBpmState(Math.max(50, Math.min(110, Number(s.chartTempoBpm))));
+    } catch {
+      // ignore
+    }
+  }
+
+  useEffect(() => {
+    loadTuneForSong(selectedScore);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedScoreId]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (tapTempoMode && (e.code === "Space" || e.code === "KeyT")) {
+        e.preventDefault();
+        registerTap();
+        return;
+      }
+      const idx = HIT_KEYS.indexOf(e.code);
+      if (idx < 0 || e.repeat) return;
+      runtimeRef.current.lanePressed[idx] = true;
+      flashLane(idx);
+      pressLane(idx);
+    };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.code === "BracketLeft") setTimingOffsetMs((v) => Math.max(-300, v - 20));
+      if (e.code === "BracketRight") setTimingOffsetMs((v) => Math.min(300, v + 20));
+      if (e.code === "Minus") setJudgeLineOffsetPxState((v) => Math.max(70, v - 5));
+      if (e.code === "Equal") setJudgeLineOffsetPxState((v) => Math.min(180, v + 5));
+      if (e.code === "Escape") setSettingsOpen(false);
+      const idx = HIT_KEYS.indexOf(e.code);
+      if (idx >= 0) runtimeRef.current.lanePressed[idx] = false;
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    window.addEventListener("keyup", onKeyUp);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("keyup", onKeyUp);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tapTempoMode, tapTimes]);
+
+  function onLanePointerDown(i: number): void {
+    runtimeRef.current.lanePressed[i] = true;
+    flashLane(i);
+    pressLane(i);
+  }
+
+  return (
+    <>
+      <div className="bg-glow" />
+      <main className="app">
+        <header className="topbar">
+          <div className="title-wrap">
+            <h1>SEKAI-Like Rhythm Demo</h1>
+            <p>キー: D / F / J / K，またはレーンをタップ</p>
+          </div>
+          <div className="status">
+            <div><span className="label">Score</span><span>{score}</span></div>
+            <div><span className="label">Combo</span><span>{combo}</span></div>
+            <div><span className="label">Judge</span><span>{judge}</span></div>
+            <div><span className="label">Song</span><span>{songTitle}</span></div>
+            <div>
+              <span className="label">Score Set</span>
+              <select value={selectedScoreId} onChange={(e) => setSelectedScoreId(e.target.value)}>
+                {scores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+              </select>
+            </div>
+          </div>
+        </header>
+
+        <section className="playfield-wrap">
+          <div className="playfield" id="playfield" ref={playfieldRef}>
+            <div className="cue">{runtimeRef.current.gameRunning ? "" : "READY"}</div>
+            <div className="judge-line" />
+            <div className="track-bg" aria-hidden="true">
+              <svg className="track-perspective" viewBox="0 0 100 100" preserveAspectRatio="none">
+                {[0, 1, 2, 3].map((i) => (
+                  <polygon
+                    key={i}
+                    ref={(el) => {
+                      if (el) laneVisualRefs.current[i] = el;
+                    }}
+                    className={`lane-fill lane-fill-${i + 1}`}
+                    points={
+                      i === 0 ? "0,100 25,100 38,8 26,8" :
+                      i === 1 ? "25,100 50,100 50,8 38,8" :
+                      i === 2 ? "50,100 75,100 62,8 50,8" :
+                      "75,100 100,100 74,8 62,8"
+                    }
+                  />
+                ))}
+                <line className="lane-sep outer" x1="0" y1="100" x2="26" y2="8" />
+                <line className="lane-sep" x1="25" y1="100" x2="38" y2="8" />
+                <line className="lane-sep" x1="50" y1="100" x2="50" y2="8" />
+                <line className="lane-sep" x1="75" y1="100" x2="62" y2="8" />
+                <line className="lane-sep outer" x1="100" y1="100" x2="74" y2="8" />
+              </svg>
+              <div className="track-grid" />
+              <div className="track-gloss" />
+            </div>
+            <div className="lanes">
+              {[0, 1, 2, 3].map((i) => (
+                <button
+                  key={i}
+                  className="lane"
+                  onPointerDown={() => onLanePointerDown(i)}
+                  onPointerUp={() => { runtimeRef.current.lanePressed[i] = false; }}
+                  onPointerLeave={() => { runtimeRef.current.lanePressed[i] = false; }}
+                />
+              ))}
+            </div>
+            <div id="notes-layer" ref={notesLayerRef} />
+            <div className={`result-overlay ${result.show ? "" : "hidden"}`} aria-hidden={!result.show}>
+              <div className="result-card">
+                <p className="result-state">{result.state}</p>
+                <p className="result-rank">{result.rank}</p>
+                <p className="result-score">SCORE {result.score}</p>
+                <p className="result-meta">ACCURACY {result.acc}</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <footer className="controls">
+          <button className="primary" onClick={() => { resetGame(); startGame(); }}>START / RESTART</button>
+          <button onClick={() => setSettingsOpen(true)}>SETTINGS</button>
+          <div className="progress">{progress}</div>
+        </footer>
+      </main>
+
+      <div className={`settings-panel ${settingsOpen ? "" : "hidden"}`} onClick={(e) => {
+        if (e.target === e.currentTarget) setSettingsOpen(false);
+      }}>
+        <div className="settings-card">
+          <h2>Settings</h2>
+          <label>Note Speed</label>
+          <div className="speed-row">
+            <input type="range" min={6} max={12} step={0.1} value={noteSpeed} onChange={(e) => setNoteSpeed(Number(e.target.value))} />
+            <span>{noteSpeed.toFixed(1)}</span>
+          </div>
+          <label>Timing Offset (ms)</label>
+          <div className="speed-row">
+            <input type="range" min={-300} max={300} step={10} value={timingOffsetMs} onChange={(e) => setTimingOffsetMs(Number(e.target.value))} />
+            <span>{Math.round(timingOffsetMs)}</span>
+          </div>
+          <label>Chart BPM</label>
+          <div className="speed-row">
+            <input type="range" min={50} max={110} step={0.5} value={chartTempoBpm} onChange={(e) => { setChartTempoBpmState(Number(e.target.value)); rebuildChartForCurrentTime(); }} />
+            <span>{chartTempoBpm.toFixed(1)}</span>
+          </div>
+          <div className="speed-row">
+            <button onClick={toggleTapTempo}>TAP TEMPO</button>
+            <span>{tapTempoState}</span>
+          </div>
+          <div className="speed-row">
+            <input type="file" accept=".musicxml,.xml,.mxl,.mid,.midi" onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              try {
+                const lower = file.name.toLowerCase();
+                if (lower.endsWith(".mid") || lower.endsWith(".midi")) {
+                  const midiNotes = parseMidi(await file.arrayBuffer());
+                  const midiEvents = midiNotes.map((n) => ({
+                    beatPos: 0,
+                    durationBeats: 0,
+                    midi: n.midi,
+                    timeMs: n.timeMs,
+                    durationMs: n.durationMs,
+                  }));
+                  runtimeRef.current.importedEvents = midiEvents;
+                  runtimeRef.current.midiPlaybackEvents = midiEvents;
+                } else {
+                  const xml = lower.endsWith(".mxl")
+                    ? await extractMusicXmlFromMxl(await file.arrayBuffer())
+                    : await file.text();
+                  runtimeRef.current.importedEvents = parseMusicXml(xml);
+                  runtimeRef.current.midiPlaybackEvents = [];
+                }
+                runtimeRef.current.chartSourceMode = "score";
+                setXmlImportState(`score: ${file.name}`);
+                rebuildChartForCurrentTime();
+              } catch {
+                setXmlImportState("import failed");
+              }
+            }} />
+            <span>{xmlImportState}</span>
+          </div>
+          <label>Judge Line Y</label>
+          <div className="speed-row">
+            <input type="range" min={70} max={180} step={5} value={judgeLineOffsetPx} onChange={(e) => setJudgeLineOffsetPxState(Number(e.target.value))} />
+            <span>{Math.round(judgeLineOffsetPx)}</span>
+          </div>
+          <p className="settings-hint">`[` / `]` timing, `-` / `=` judge line, `Space` tap</p>
+          <button onClick={saveTuneForSong}>SAVE FOR THIS SONG</button>
+          <button onClick={() => setSettingsOpen(false)}>CLOSE</button>
+        </div>
+      </div>
+    </>
+  );
+}

@@ -1,54 +1,39 @@
-# プロセカ風リズムゲーム（ブラウザ版デモ）
+# プロセカ風リズムゲーム（React + TypeScript）
 
-このフォルダは独立したGitリポジトリとして初期化済みです．
-
-## 起動方法
-
-1. このフォルダでローカルサーバーを起動する．
-   `python -m http.server 8000`
-2. ブラウザで `http://localhost:8000` を開く．
-3. `START / RESTART` ボタンを押す．
-4. `D / F / J / K` キー，または各レーンをタップしてノーツを叩く．
-
-## 実装内容
-
-- 4レーン落下ノーツ
-- 判定: `Perfect / Great / Good / Miss`
-- ロングノーツ対応（入り判定と終端判定を独立処理）
-- 空打ち時も`MISS`判定を表示
-- スコア，コンボ表示
-- 終了時リザルト表示（`CLEAR!/FAILED`，ランク，精度）
-- `SETTINGS`からノーツ速度変更（6.0〜12.0，保存あり）
-- `SETTINGS`からタイミングオフセット調整（-300〜+300ms，保存あり）
-- `SETTINGS`から譜面テンポ調整（50〜110 BPM，四分/八分/3連格子）
-- `SAVE FOR THIS SONG` で曲ごとのテンポ・タイミング設定を保存
-- `TAP TEMPO` で実再生中の四分打ちからBPM/タイミングを自動補正
-- MusicXML読み込み（`.musicxml/.xml`）で楽譜ベース譜面へ切替
-- `SETTINGS`から判定ライン位置調整（70〜180px，保存あり）
-- `[` / `]` キーでタイミングオフセットを±20ms微調整
-- `-` / `=` キーで判定ライン位置を上下調整
-- ノーツ幅を拡張して視認性を改善
-- JSON譜面読み込み（`charts/chopin_nocturne_easy.json`）
-- ショパン音源再生（`assets/audio/Chopin_Nocturne_Op_9_No_2.ogg`）
-- 再生失敗時も同一ローカル音源へフォールバック
-- 公開音源が再生できない環境では，自動で内蔵シンセBGMにフォールバック
-- 開始カウントダウン（3，2，1）と開始/終了ジングル
-- 押下時は効果音なし，判定テキストのみ表示
-- 3D遠近レーン（奥から手前に迫る見た目）
-- 長尺プレイ（200秒，332ノーツ）
-- テンポ格子譜面（4分/8分/3連ベース）
-- デフォルト基準テンポ: 66 BPM（ショパンNocturne向け）
-- PCキーボード入力とモバイルタップの両対応
-
-## 音源
-
-- ファイル: `assets/audio/Chopin_Nocturne_Op_9_No_2.ogg`
-- ライセンス: Public domain composition / Wikimedia recording
-
-## Git操作メモ
+## 起動
 
 ```bash
-git status
-git add .
-git commit -m "Add browser rhythm game prototype"
+npm install
+npm run dev
 ```
+
+`http://localhost:5173` を開く．
+
+## 主要機能
+
+- 斜め4レーンのリズムゲーム
+- ロングノーツ（入り判定と終端判定を独立）
+- Settings で速度/タイミング/BPM/判定ライン調整
+- TAP TEMPO で四分打ちからBPMとオフセット補正
+- 曲ごと調整値を保存（SAVE FOR THIS SONG）
+- MusicXML（`.musicxml`/`.xml`/`.mxl`）とMIDI（`.mid`）読込
+- `mxl + midi` 同時指定時は，ノーツ列は楽譜ベース，タイミングはMIDIベースで同期
+
+## 複数楽譜の保持
+
+- 楽譜配置: `public/scores/xml/`
+- 曲一覧: `public/scores/index.json`
+
+`index.json`に1曲追加すると，画面右上の`Score Set`で選択できます．
+
+### `index.json` の主なキー
+
+- `xmlPath`: 非圧縮MusicXML
+- `mxlPath`: 圧縮MusicXML（MXL）
+- `midiPath`: MIDIタイミング取得用
+- `audioUrl`: 音源URL（MIDIを指定した場合はブラウザ再生不可時に簡易シンセで再生）
+
+## 補足
+
+- 音源は `public/assets/audio/` に配置する．
+- 楽譜と音源は同じアレンジ由来を使うと同期精度が上がる．

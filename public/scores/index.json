@@ -1,0 +1,33 @@
+[
+  {
+    "id": "lian-ai-cai-pan-40mp",
+    "title": "lian-ai-cai-pan-40mp",
+    "artist": "Score + MIDI",
+    "audioUrl": "/scores/xml/lian-ai-cai-pan-40mp.mid",
+    "mxlPath": "/scores/xml/lian-ai-cai-pan-40mp.mxl",
+    "midiPath": "/scores/xml/lian-ai-cai-pan-40mp.mid",
+    "offsetMs": 0,
+    "bpm": 120,
+    "lengthSec": 240
+  },
+  {
+    "id": "chopin-nocturne",
+    "title": "Chopin Nocturne Op.9 No.2",
+    "artist": "Frederic Chopin",
+    "audioUrl": "/assets/audio/Chopin_Nocturne_Op_9_No_2.ogg",
+    "xmlPath": "/scores/xml/chopin_nocturne.musicxml",
+    "offsetMs": 1650,
+    "bpm": 66,
+    "lengthSec": 200
+  },
+  {
+    "id": "chopin-practice-a",
+    "title": "Chopin Practice Variant A",
+    "artist": "Frederic Chopin",
+    "audioUrl": "/assets/audio/Chopin_Nocturne_Op_9_No_2.ogg",
+    "xmlPath": "/scores/xml/chopin_practice_a.musicxml",
+    "offsetMs": 1650,
+    "bpm": 66,
+    "lengthSec": 200
+  }
+]

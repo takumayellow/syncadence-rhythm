@@ -1,112 +1,12 @@
 <!doctype html>
 <html lang="ja">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>SEKAI-Like Rhythm Demo</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700&family=Kanit:wght@500;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div class="bg-glow"></div>
-  <main class="app">
-    <header class="topbar">
-      <div class="title-wrap">
-        <h1>SEKAI-Like Rhythm Demo</h1>
-        <p>キー: D / F / J / K，またはレーンをタップ</p>
-      </div>
-      <div class="status">
-        <div><span class="label">Score</span><span id="score">0</span></div>
-        <div><span class="label">Combo</span><span id="combo">0</span></div>
-        <div><span class="label">Judge</span><span id="judge">-</span></div>
-        <div><span class="label">Song</span><span id="songTitle">Loading...</span></div>
-      </div>
-    </header>
-
-    <section class="playfield-wrap">
-      <div class="playfield" id="playfield">
-        <div id="cueText" class="cue hidden">READY</div>
-        <div id="hitFeedback" class="hit-feedback hidden">PERFECT</div>
-        <div class="track-bg" aria-hidden="true">
-          <svg class="track-perspective" viewBox="0 0 100 100" preserveAspectRatio="none">
-            <polygon class="lane-fill lane-fill-1" data-lane-visual="0" points="0,100 25,100 38,8 26,8"></polygon>
-            <polygon class="lane-fill lane-fill-2" data-lane-visual="1" points="25,100 50,100 50,8 38,8"></polygon>
-            <polygon class="lane-fill lane-fill-3" data-lane-visual="2" points="50,100 75,100 62,8 50,8"></polygon>
-            <polygon class="lane-fill lane-fill-4" data-lane-visual="3" points="75,100 100,100 74,8 62,8"></polygon>
-            <line class="lane-sep outer" x1="0" y1="100" x2="26" y2="8"></line>
-            <line class="lane-sep" x1="25" y1="100" x2="38" y2="8"></line>
-            <line class="lane-sep" x1="50" y1="100" x2="50" y2="8"></line>
-            <line class="lane-sep" x1="75" y1="100" x2="62" y2="8"></line>
-            <line class="lane-sep outer" x1="100" y1="100" x2="74" y2="8"></line>
-          </svg>
-          <div class="track-grid"></div>
-          <div class="track-gloss"></div>
-        </div>
-        <div class="judge-line"></div>
-        <div class="lanes">
-          <button class="lane" data-lane="0" aria-label="lane 1"></button>
-          <button class="lane" data-lane="1" aria-label="lane 2"></button>
-          <button class="lane" data-lane="2" aria-label="lane 3"></button>
-          <button class="lane" data-lane="3" aria-label="lane 4"></button>
-        </div>
-        <div id="notes-layer"></div>
-        <div id="resultOverlay" class="result-overlay hidden" aria-hidden="true">
-          <div class="result-card">
-            <p id="resultState" class="result-state">CLEAR!</p>
-            <p id="resultRank" class="result-rank">RANK A</p>
-            <p id="resultScore" class="result-score">SCORE 0</p>
-            <p id="resultAcc" class="result-meta">ACCURACY 0%</p>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <footer class="controls">
-      <button id="startBtn" class="primary">START / RESTART</button>
-      <button id="settingsBtn">SETTINGS</button>
-      <div id="songProgress" class="progress">Ready</div>
-    </footer>
-  </main>
-
-  <div id="settingsPanel" class="settings-panel hidden" aria-hidden="true">
-    <div class="settings-card">
-      <h2>Settings</h2>
-      <label for="speedRange">Note Speed</label>
-      <div class="speed-row">
-        <input id="speedRange" type="range" min="6" max="12" step="0.1" value="10.5" />
-        <span id="speedValue">10.5</span>
-      </div>
-      <label for="timingRange">Timing Offset (ms)</label>
-      <div class="speed-row">
-        <input id="timingRange" type="range" min="-300" max="300" step="10" value="0" />
-        <span id="timingValue">0</span>
-      </div>
-      <label for="tempoRange">Chart BPM</label>
-      <div class="speed-row">
-        <input id="tempoRange" type="range" min="50" max="110" step="0.5" value="66" />
-        <span id="tempoValue">66.0</span>
-      </div>
-      <div class="speed-row">
-        <button id="tapTempoBtn">TAP TEMPO</button>
-        <span id="tapTempoState">idle</span>
-      </div>
-      <div class="speed-row">
-        <input id="musicXmlInput" type="file" accept=".musicxml,.xml" />
-        <span id="xmlImportState">no score</span>
-      </div>
-      <label for="judgeLineRange">Judge Line Y</label>
-      <div class="speed-row">
-        <input id="judgeLineRange" type="range" min="70" max="180" step="5" value="110" />
-        <span id="judgeLineValue">110</span>
-      </div>
-      <p class="settings-hint">`[` で -20ms / `]` で +20ms，`-` / `=` で判定ライン上下</p>
-      <button id="saveSongTuneBtn">SAVE FOR THIS SONG</button>
-      <button id="closeSettingsBtn">CLOSE</button>
-    </div>
-  </div>
-
-  <script src="script.js"></script>
-</body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SEKAI-Like Rhythm Demo</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>

@@ -1,0 +1,446 @@
+:root {
+  --bg-1: #070f1b;
+  --bg-2: #17254f;
+  --lane: rgba(255, 255, 255, 0.08);
+  --lane-border: rgba(255, 255, 255, 0.22);
+  --line: #fff5a8;
+  --note-a: #57f0da;
+  --note-b: #ff7ba8;
+  --text: #f2f5ff;
+  --good: #75e3ff;
+  --great: #63ff9d;
+  --perfect: #ffe175;
+  --miss: #ff7676;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Zen Kaku Gothic New", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(0, 235, 255, 0.18), transparent 40%),
+    radial-gradient(circle at 80% 10%, rgba(255, 102, 175, 0.2), transparent 35%),
+    linear-gradient(150deg, var(--bg-1), var(--bg-2));
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.bg-glow {
+  position: fixed;
+  inset: -25%;
+  background: conic-gradient(from 120deg, transparent, rgba(255,255,255,0.07), transparent 30%);
+  animation: spin 10s linear infinite;
+  pointer-events: none;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.app {
+  width: min(960px, 96vw);
+  display: grid;
+  gap: 10px;
+  z-index: 1;
+  margin-top: -8px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 16px;
+}
+
+.title-wrap h1 {
+  margin: 0;
+  font: 700 1.6rem "Kanit", sans-serif;
+  letter-spacing: 0.03em;
+}
+
+.title-wrap p {
+  margin: 4px 0 0;
+  opacity: 0.85;
+}
+
+.status {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.status div {
+  min-width: 120px;
+  padding: 8px 10px;
+  border: 1px solid var(--lane-border);
+  background: rgba(0,0,0,0.24);
+  border-radius: 10px;
+  backdrop-filter: blur(2px);
+}
+
+.label {
+  display: block;
+  opacity: 0.72;
+  font-size: 0.78rem;
+}
+
+.playfield-wrap {
+  display: grid;
+  place-items: center;
+}
+
+.playfield {
+  position: relative;
+  width: min(700px, 96vw);
+  height: min(68vh, 680px);
+  border: 2px solid var(--lane-border);
+  border-radius: 16px;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02)),
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255,255,255,0.02) 0,
+      rgba(255,255,255,0.02) 8px,
+      transparent 8px,
+      transparent 16px
+    );
+  perspective: 1200px;
+}
+
+.track-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  clip-path: polygon(26% 8%, 74% 8%, 100% 100%, 0% 100%);
+  background:
+    linear-gradient(180deg, rgba(161, 224, 255, 0.12), rgba(32, 39, 94, 0.28) 35%, rgba(10, 14, 30, 0.44));
+}
+
+.track-perspective {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.lane-fill {
+  opacity: 0.32;
+  transition: fill 80ms ease, opacity 80ms ease;
+}
+
+.lane-fill-1,
+.lane-fill-3 {
+  fill: rgba(83, 228, 255, 0.22);
+}
+
+.lane-fill-2,
+.lane-fill-4 {
+  fill: rgba(255, 123, 180, 0.2);
+}
+
+.lane-sep {
+  stroke: rgba(255, 255, 255, 0.72);
+  stroke-width: 0.42;
+}
+
+.lane-sep.outer {
+  stroke: rgba(255, 255, 255, 0.85);
+  stroke-width: 0.56;
+}
+
+.lane-fill.active {
+  fill: rgba(255, 255, 255, 0.48);
+  opacity: 0.9;
+}
+
+.track-grid {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      to bottom,
+      rgba(255, 255, 255, 0.2) 0,
+      rgba(255, 255, 255, 0.2) 1px,
+      transparent 1px,
+      transparent 22px
+    ),
+    linear-gradient(to right, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.07));
+  transform-origin: top center;
+  transform: perspective(900px) rotateX(7deg);
+  opacity: 0.3;
+  animation: trackFlow 1.6s linear infinite;
+}
+
+.track-gloss {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(130deg, rgba(255, 255, 255, 0.14), transparent 38%),
+    linear-gradient(350deg, rgba(0, 250, 255, 0.09), transparent 45%);
+}
+
+@keyframes trackFlow {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 0 22px, 0 0; }
+}
+
+.lanes {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  clip-path: polygon(26% 8%, 74% 8%, 100% 100%, 0% 100%);
+  z-index: 3;
+}
+
+.lane {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  transition: background 80ms ease;
+  appearance: none;
+  -webkit-appearance: none;
+  -webkit-tap-highlight-color: transparent;
+  outline: none;
+}
+
+.lane:active,
+.lane.active {
+  background: transparent;
+}
+
+.judge-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--judge-line-bottom, 110px);
+  height: 5px;
+  background: var(--line);
+  box-shadow: 0 0 22px rgba(255, 245, 168, 0.95);
+  z-index: 6;
+}
+
+#notes-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+}
+
+.note {
+  position: absolute;
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.26), transparent 28%), var(--note-a);
+  border: 1px solid rgba(255,255,255,0.35);
+  box-shadow: 0 8px 18px rgba(0,0,0,0.4);
+  transform-origin: center;
+}
+
+.note.alt {
+  background: linear-gradient(180deg, rgba(255,255,255,0.24), transparent 28%), var(--note-b);
+}
+
+.note.long-note {
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0.08) 22%, rgba(0,0,0,0.06) 100%),
+    linear-gradient(180deg, #69ffe2, #14b6ff);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.38), inset 0 0 0 1px rgba(255,255,255,0.24);
+  transform-origin: top left;
+}
+
+.cue {
+  position: absolute;
+  inset: 0 auto auto 50%;
+  transform: translate(-50%, 34px) scale(1);
+  font: 700 2rem "Kanit", sans-serif;
+  letter-spacing: 0.06em;
+  color: #f8fcff;
+  text-shadow: 0 0 24px rgba(138, 250, 255, 0.95);
+  z-index: 8;
+  transition: opacity 220ms ease, transform 220ms ease;
+  pointer-events: none;
+}
+
+.hit-feedback {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--judge-line-bottom, 110px) + 18px);
+  transform: translateX(-50%) scale(1);
+  font: 700 2rem "Kanit", sans-serif;
+  letter-spacing: 0.05em;
+  color: var(--perfect);
+  text-shadow: 0 0 20px rgba(255,255,255,0.7);
+  z-index: 8;
+  transition: opacity 180ms ease, transform 180ms ease;
+  pointer-events: none;
+}
+
+.cue.hidden,
+.hit-feedback.hidden {
+  opacity: 0;
+  transform: translate(-50%, 8px) scale(0.95);
+}
+
+.result-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 12;
+  background: rgba(4, 7, 18, 0.68);
+  backdrop-filter: blur(2px);
+  display: grid;
+  place-items: center;
+}
+
+.result-overlay.hidden {
+  display: none;
+}
+
+.result-card {
+  width: min(430px, 86vw);
+  text-align: center;
+  padding: 22px 18px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.35);
+  background: linear-gradient(180deg, rgba(16,28,60,0.95), rgba(11,18,37,0.95));
+  box-shadow: 0 14px 30px rgba(0,0,0,0.45);
+}
+
+.result-state {
+  margin: 0;
+  font: 700 2.1rem "Kanit", sans-serif;
+  letter-spacing: 0.04em;
+}
+
+.result-rank {
+  margin: 4px 0 0;
+  font: 700 1.7rem "Kanit", sans-serif;
+}
+
+.result-score {
+  margin: 8px 0 0;
+  font: 700 1.2rem "Kanit", sans-serif;
+}
+
+.result-meta {
+  margin: 2px 0 0;
+  opacity: 0.9;
+}
+
+.controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+button {
+  font: 700 0.95rem "Kanit", sans-serif;
+  border-radius: 10px;
+  border: 1px solid var(--lane-border);
+  padding: 8px 16px;
+  color: var(--text);
+  background: rgba(0,0,0,0.24);
+}
+
+button.primary {
+  background: linear-gradient(90deg, #00d4ff, #00ffa3);
+  color: #102035;
+  border: none;
+}
+
+.progress {
+  margin-left: auto;
+  opacity: 0.9;
+}
+
+.settings-panel {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(3, 8, 20, 0.65);
+  backdrop-filter: blur(3px);
+  z-index: 20;
+}
+
+.settings-panel.hidden {
+  display: none;
+}
+
+.settings-card {
+  width: min(420px, 92vw);
+  padding: 18px;
+  border-radius: 14px;
+  border: 1px solid var(--lane-border);
+  background: linear-gradient(180deg, rgba(14, 24, 48, 0.95), rgba(10, 17, 35, 0.95));
+}
+
+.settings-card h2 {
+  margin: 0 0 12px;
+  font: 700 1.2rem "Kanit", sans-serif;
+}
+
+.speed-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+  align-items: center;
+  margin: 8px 0 16px;
+}
+
+#speedRange {
+  width: 100%;
+}
+
+#speedValue {
+  min-width: 44px;
+  text-align: right;
+  font: 700 1rem "Kanit", sans-serif;
+}
+
+.settings-hint {
+  margin: 0 0 14px;
+  opacity: 0.8;
+  font-size: 0.86rem;
+}
+
+.judge-perfect { color: var(--perfect); }
+.judge-great { color: var(--great); }
+.judge-good { color: var(--good); }
+.judge-miss { color: var(--miss); }
+
+@media (max-width: 700px) {
+  .topbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .playfield {
+    height: 68vh;
+  }
+
+  .controls {
+    flex-wrap: wrap;
+  }
+
+  .hit-feedback {
+    font-size: 1.7rem;
+  }
+}
+
+select {
+  width: 170px;
+  font: 600 0.88rem "Zen Kaku Gothic New", sans-serif;
+  color: var(--text);
+  background: rgba(0,0,0,0.25);
+  border: 1px solid var(--lane-border);
+  border-radius: 8px;
+  padding: 4px 6px;
+}
