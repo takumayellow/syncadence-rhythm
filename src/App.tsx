@@ -29,7 +29,7 @@ const defaultScore: ScoreMeta = {
   id: "lian-ai-cai-pan-40mp",
   title: "lian-ai-cai-pan-40mp",
   artist: "Score + MIDI",
-  audioUrl: "/scores/xml/lian-ai-cai-pan-40mp.mid",
+  audioUrl: "/scores/xml/lian-ai-cai-pan-40meterp.mp3",
   mxlPath: "/scores/xml/lian-ai-cai-pan-40mp.mxl",
   midiPath: "/scores/xml/lian-ai-cai-pan-40mp.mid",
   offsetMs: 0,
@@ -201,6 +201,55 @@ function chooseLaneFromMidi(midi: number, minMidi: number, maxMidi: number): num
   return Math.max(0, Math.min(3, Math.floor(tNorm * 4)));
 }
 
+function assignLanesForFlow(events: ScoreEvent[], bpm: number): number[] {
+  if (!events.length) return [];
+  const beatMs = 60000 / Math.max(1, bpm);
+  const minMidi = Math.min(...events.map((e) => e.midi));
+  const maxMidi = Math.max(...events.map((e) => e.midi));
+  const lanes: number[] = [];
+  let prevLane = -1;
+  let prevMidi = events[0].midi;
+  let sameStreak = 0;
+
+  for (let i = 0; i < events.length; i += 1) {
+    const e = events[i];
+    const pref = chooseLaneFromMidi(e.midi, minMidi, maxMidi);
+    const prev = i > 0 ? events[i - 1] : null;
+    const dt = prev ? ((e.timeMs ?? e.beatPos * beatMs) - (prev.timeMs ?? prev.beatPos * beatMs)) : Number.POSITIVE_INFINITY;
+    const shortGap = dt < beatMs * 0.58;
+    const veryShortGap = dt < beatMs * 0.36;
+    const pitchDir = Math.sign(e.midi - prevMidi);
+
+    let bestLane = pref;
+    let bestScore = Number.POSITIVE_INFINITY;
+    for (let lane = 0; lane < LANE_COUNT; lane += 1) {
+      let score = 0;
+      score += Math.abs(lane - pref) * 1.15;
+      if (prevLane >= 0) score += Math.abs(lane - prevLane) * 0.28;
+      if (lane === prevLane && shortGap) score += 1.45;
+      if (lane === prevLane && veryShortGap) score += 1.2;
+      if (sameStreak >= 1 && lane === prevLane) score += 1.8;
+      if (sameStreak >= 2 && lane === prevLane) score += 3.8;
+      if (pitchDir > 0 && prevLane >= 0 && lane < prevLane) score += 0.55;
+      if (pitchDir < 0 && prevLane >= 0 && lane > prevLane) score += 0.55;
+      if ((e.durationMs ?? 0) > beatMs * 0.95) {
+        if (prevLane >= 0 && lane !== prevLane) score += 0.35;
+      }
+      if (score < bestScore) {
+        bestScore = score;
+        bestLane = lane;
+      }
+    }
+
+    lanes.push(bestLane);
+    if (bestLane === prevLane) sameStreak += 1;
+    else sameStreak = 0;
+    prevLane = bestLane;
+    prevMidi = e.midi;
+  }
+  return lanes;
+}
+
 async function fetchMusicXml(meta: ScoreMeta): Promise<ScoreEvent[]> {
   if (meta.mxlPath) {
     const res = await fetch(meta.mxlPath);
@@ -299,6 +348,8 @@ export default function App(): JSX.Element {
   const [progress, setProgress] = useState("Ready");
   const [songTitle, setSongTitle] = useState("Loading...");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
+  const [customAudioName, setCustomAudioName] = useState<string>("");
   const [noteSpeed, setNoteSpeed] = useState(10.5);
   const [timingOffsetMs, setTimingOffsetMs] = useState(0);
   const [chartTempoBpm, setChartTempoBpmState] = useState(66);
@@ -317,6 +368,7 @@ export default function App(): JSX.Element {
     show:false,state:"CLEAR!",rank:"RANK A",acc:"0.0%",score:"0"
   });
   const feedbackTimerRef = useRef<number | null>(null);
+  const customAudioObjectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     const savedSpeed = Number(localStorage.getItem("pjsk_note_speed"));
@@ -360,11 +412,20 @@ export default function App(): JSX.Element {
       if (feedbackTimerRef.current) {
         clearTimeout(feedbackTimerRef.current);
       }
+      if (customAudioObjectUrlRef.current) {
+        URL.revokeObjectURL(customAudioObjectUrlRef.current);
+      }
     };
   }, []);
 
   useEffect(() => {
     setSongTitle(`${selectedScore.title} / ${selectedScore.artist}`);
+    if (customAudioObjectUrlRef.current) {
+      URL.revokeObjectURL(customAudioObjectUrlRef.current);
+      customAudioObjectUrlRef.current = null;
+    }
+    setCustomAudioUrl(null);
+    setCustomAudioName("");
     setChartTempoBpmState(selectedScore.bpm || 66);
     const rt = runtimeRef.current;
     rt.importedEvents = [];
@@ -410,10 +471,9 @@ export default function App(): JSX.Element {
     const simplified = simplifyEventsForRhythm(events, bpm);
     if (!simplified.length) return [];
     const beatMs = 60000 / bpm;
-    const minMidi = Math.min(...simplified.map((e) => e.midi));
-    const maxMidi = Math.max(...simplified.map((e) => e.midi));
-    const base = simplified.map((e) => {
-      const lane = chooseLaneFromMidi(e.midi, minMidi, maxMidi);
+    const lanePlan = assignLanesForFlow(simplified, bpm);
+    const base = simplified.map((e, idx) => {
+      const lane = lanePlan[idx] ?? 1;
       const hitTime = Math.round(
         (selectedScore.offsetMs || 0) + (Number.isFinite(e.timeMs) ? (e.timeMs as number) : e.beatPos * beatMs)
       );
@@ -459,6 +519,10 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     if (rt.chartSourceMode === "score" && rt.importedEvents.length) return rt.importedEvents;
     return generateGridEvents(settingsRef.current.chartTempoBpm);
+  }
+
+  function getEffectiveAudioUrl(): string {
+    return customAudioUrl || selectedScore.audioUrl;
   }
 
   function midiToFreq(midi: number): number {
@@ -579,9 +643,8 @@ export default function App(): JSX.Element {
     for (const note of rt.chart) {
       if (note.hitTime < now - JUDGE_WINDOWS.miss && note.durationMs === 0) {
         note.judged = true;
-        continue;
       }
-      createNoteElement(note);
+      note.element = null;
     }
   }
 
@@ -597,10 +660,11 @@ export default function App(): JSX.Element {
       rt.audio.pause();
       rt.audio.currentTime = 0;
     }
-    if (isMidiUrl(selectedScore.audioUrl)) {
+    const effectiveAudio = getEffectiveAudioUrl();
+    if (isMidiUrl(effectiveAudio)) {
       rt.audio = null;
     } else {
-      rt.audio = new Audio(selectedScore.audioUrl);
+      rt.audio = new Audio(effectiveAudio);
       rt.audio.preload = "auto";
       rt.audio.crossOrigin = "anonymous";
     }
@@ -784,14 +848,20 @@ export default function App(): JSX.Element {
     const judgeLineY = pf.clientHeight - settingsRef.current.judgeLineOffsetPx;
     const approachMs = BASE_APPROACH_MS * (10 / settingsRef.current.noteSpeed);
     const maxAhead = approachMs + 650;
+    const pruneAhead = maxAhead + 520;
 
     for (const note of rt.chart) {
       if (note.judged) continue;
       const dt = note.hitTime - nowMs;
-      if (dt > maxAhead) {
-        if (note.element) note.element.style.display = "none";
+      if (dt > pruneAhead) {
+        if (note.element) {
+          note.element.remove();
+          note.element = null;
+          note.lastStyleKey = "";
+        }
         continue;
       }
+      if (dt > maxAhead) continue;
 
       if (note.durationMs > 0) {
         if (!note.headJudged && nowMs > note.hitTime + JUDGE_WINDOWS.miss) judgeLongHead(note, "miss");
@@ -821,6 +891,7 @@ export default function App(): JSX.Element {
       const xTail = laneCenterAtDepth(note.lane, depthTail, pf.clientWidth) - wTail / 2;
       const skew = (note.lane - 1.5) * -1.8 * (1 - depthHead);
 
+      if (!note.element) createNoteElement(note);
       if (!note.element) continue;
       let drawX = xHead;
       let drawY = yHead - hHead / 2;
@@ -1114,6 +1185,10 @@ export default function App(): JSX.Element {
             <div><span className="label">Judge</span><span>{judge}</span></div>
             <div><span className="label">Song</span><span>{songTitle}</span></div>
             <div>
+              <span className="label">BGM</span>
+              <span>{customAudioName ? `custom: ${customAudioName}` : isMidiUrl(getEffectiveAudioUrl()) ? "MIDI synth" : "audio file"}</span>
+            </div>
+            <div>
               <span className="label">Score Set</span>
               <select value={selectedScoreId} onChange={(e) => setSelectedScoreId(e.target.value)}>
                 {scores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
@@ -1242,6 +1317,23 @@ export default function App(): JSX.Element {
               }
             }} />
             <span>{xmlImportState}</span>
+          </div>
+          <label>BGM Audio</label>
+          <div className="speed-row">
+            <input type="file" accept=".ogg,.mp3,.wav,.m4a,.aac,.flac" onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              if (customAudioObjectUrlRef.current) {
+                URL.revokeObjectURL(customAudioObjectUrlRef.current);
+              }
+              const url = URL.createObjectURL(file);
+              customAudioObjectUrlRef.current = url;
+              setCustomAudioUrl(url);
+              setCustomAudioName(file.name);
+              setProgress("Custom audio loaded");
+              resetGame();
+            }} />
+            <span>{customAudioName || "default"}</span>
           </div>
           <label>Judge Line Y</label>
           <div className="speed-row">
