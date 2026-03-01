@@ -69,14 +69,15 @@ body {
 }
 
 .status {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(126px, 1fr));
   gap: 10px;
-  flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-items: stretch;
+  width: min(560px, 100%);
 }
 
 .status div {
-  min-width: 120px;
+  min-width: 0;
   padding: 8px 10px;
   border: 1px solid var(--lane-border);
   background: rgba(0,0,0,0.24);
@@ -438,6 +439,11 @@ button.primary {
   .topbar {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .status {
+    grid-template-columns: repeat(2, minmax(130px, 1fr));
+    width: 100%;
   }
 
   .playfield {

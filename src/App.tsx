@@ -27,13 +27,13 @@ const SCORE_MAP: Record<Judge, number> = {
 
 const defaultScore: ScoreMeta = {
   id: "lian-ai-cai-pan-40mp",
-  title: "lian-ai-cai-pan-40mp",
-  artist: "Score + MIDI",
-  audioUrl: "/scores/xml/lian-ai-cai-pan-40meterp.mp3",
-  mxlPath: "/scores/xml/lian-ai-cai-pan-40mp.mxl",
-  midiPath: "/scores/xml/lian-ai-cai-pan-40mp.mid",
-  offsetMs: 0,
-  bpm: 120,
+  title: "shishiriennu-zuo-pin78-to-duan-diao",
+  artist: "Score + MP3",
+  audioUrl: "/scores/songs/shishiriennu-op78-etude/audio.mp3",
+  mxlPath: "/scores/songs/shishiriennu-op78-etude/score.mxl",
+  strictMode: true,
+  offsetMs: -120,
+  bpm: 100,
   lengthSec: 240,
 };
 
