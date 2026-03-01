@@ -657,6 +657,7 @@ export default function App(): JSX.Element {
   });
   const feedbackTimerRef = useRef<number | null>(null);
   const customAudioObjectUrlRef = useRef<string | null>(null);
+  const isMobileUi = uiMode === "mobile";
 
   useEffect(() => {
     const ui = new URLSearchParams(window.location.search).get("ui");
@@ -1846,32 +1847,36 @@ export default function App(): JSX.Element {
     <>
       <div className="bg-glow" />
       <main className="app">
-        <header className="topbar">
-          <div className="title-wrap">
-            <h1>SEKAI-Like Rhythm Demo</h1>
-            <p>キー: D / F / J / K，またはレーンをタップ</p>
-          </div>
-          <div className="status">
-            <div><span className="label">Score</span><span>{score}</span></div>
-            <div><span className="label">Combo</span><span>{combo}</span></div>
-            <div><span className="label">Judge</span><span>{judge}</span></div>
-            <div><span className="label">Song</span><span>{songTitle}</span></div>
-            <div>
-              <span className="label">BGM</span>
-              <span>{customAudioName ? `custom: ${customAudioName}` : isMidiUrl(getEffectiveAudioUrl()) ? "MIDI synth" : "audio file"}</span>
+        {!isMobileUi && (
+          <header className="topbar">
+            <div className="title-wrap">
+              <h1>SEKAI-Like Rhythm Demo</h1>
+              <p>キー: D / F / J / K，またはレーンをタップ</p>
             </div>
-            <div className="song-select-desktop">
-              <span className="label">曲リスト</span>
-              <select value={selectedScoreId} onChange={(e) => setSelectedScoreId(e.target.value)}>
-                {scores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
-              </select>
+            <div className="status">
+              <div><span className="label">Score</span><span>{score}</span></div>
+              <div><span className="label">Combo</span><span>{combo}</span></div>
+              <div><span className="label">Judge</span><span>{judge}</span></div>
+              <div><span className="label">Song</span><span>{songTitle}</span></div>
+              <div>
+                <span className="label">BGM</span>
+                <span>{customAudioName ? `custom: ${customAudioName}` : isMidiUrl(getEffectiveAudioUrl()) ? "MIDI synth" : "audio file"}</span>
+              </div>
+              <div className="song-select-desktop">
+                <span className="label">曲リスト</span>
+                <select value={selectedScoreId} onChange={(e) => setSelectedScoreId(e.target.value)}>
+                  {scores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+                </select>
+              </div>
             </div>
-          </div>
-        </header>
+          </header>
+        )}
 
         <section className="playfield-wrap">
           <div className="playfield" id="playfield" ref={playfieldRef}>
-            <div className="mobile-song-chip" aria-hidden={uiMode !== "mobile"}>{selectedScore.title}</div>
+            {!isMobileUi && (
+              <div className="mobile-song-chip" aria-hidden="true">{selectedScore.title}</div>
+            )}
             <div className="cue">{runtimeRef.current.gameRunning ? "" : "READY"}</div>
             <div className={`countdown-overlay ${countdownText ? "" : "hidden"}`}>{countdownText}</div>
             <div className="judge-line" />
@@ -1930,7 +1935,7 @@ export default function App(): JSX.Element {
         <footer className="controls">
           <button className="primary" onClick={() => { resetGame(); startGame(); }}>START / RESTART</button>
           <button onClick={() => setSettingsOpen(true)}>SETTINGS</button>
-          <div className="progress">{progress}</div>
+          {!isMobileUi && <div className="progress">{progress}</div>}
         </footer>
       </main>
 
@@ -1939,6 +1944,27 @@ export default function App(): JSX.Element {
       }}>
         <div className="settings-card">
           <h2>Settings</h2>
+          <label>現在情報</label>
+          <div className="speed-row">
+            <span>Score / Combo</span>
+            <span>{score} / {combo}</span>
+          </div>
+          <div className="speed-row">
+            <span>Judge</span>
+            <span>{judge}</span>
+          </div>
+          <div className="speed-row">
+            <span>Song</span>
+            <span>{songTitle}</span>
+          </div>
+          <div className="speed-row">
+            <span>BGM</span>
+            <span>{customAudioName ? `custom: ${customAudioName}` : isMidiUrl(getEffectiveAudioUrl()) ? "MIDI synth" : "audio file"}</span>
+          </div>
+          <div className="speed-row">
+            <span>Status</span>
+            <span>{progress}</span>
+          </div>
           <label>Note Speed</label>
           <div className="speed-row">
             <input type="range" min={6} max={15} step={0.1} value={noteSpeed} onChange={(e) => setNoteSpeed(Number(e.target.value))} />
