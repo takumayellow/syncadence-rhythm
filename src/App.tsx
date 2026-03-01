@@ -219,6 +219,88 @@ function fitChartToSongDuration(chart: PlayNote[], mediaDurationMs: number): Pla
   return adjusted;
 }
 
+function isSparseChart(chart: PlayNote[], mediaDurationMs: number): boolean {
+  if (!chart.length || mediaDurationMs <= 0) return true;
+  const durationSec = mediaDurationMs / 1000;
+  const first = chart[0].hitTime;
+  const last = Math.max(...chart.map((n) => Math.max(n.hitTime, n.holdEndTime)));
+  const coverageRatio = Math.max(0, last - first) / mediaDurationMs;
+  const density = chart.length / Math.max(1, durationSec);
+  return chart.length < 56 || coverageRatio < 0.76 || density < 0.42;
+}
+
+function buildSupportNotes(mediaDurationMs: number, bpm: number): PlayNote[] {
+  const beatMs = 60000 / Math.max(1, bpm);
+  const flow = [1, 0.5, 1, 1 / 3, 1 / 3, 1 / 3, 1, 0.5, 0.5, 1];
+  const lanes = [1, 2, 3, 2, 1, 0, 1, 2, 3, 2, 1, 2, 3, 2, 1, 0];
+  const out: PlayNote[] = [];
+  let t = 1200;
+  let i = 0;
+  const endMs = Math.max(1300, mediaDurationMs - 120);
+  while (t <= endMs) {
+    out.push({
+      lane: lanes[i % lanes.length],
+      hitTime: Math.round(t),
+      durationMs: 0,
+      holdEndTime: Math.round(t),
+      judged: false,
+      holding: false,
+      holdBroken: false,
+      headJudged: false,
+      tailJudged: false,
+      element: null,
+      lastStyleKey: "",
+    });
+    t += beatMs * flow[i % flow.length];
+    i += 1;
+  }
+  return out;
+}
+
+function mergeChartWithSupport(base: PlayNote[], support: PlayNote[]): PlayNote[] {
+  const merged = [...base];
+  for (const s of support) {
+    const near = merged.some((n) => Math.abs(n.hitTime - s.hitTime) < 160);
+    if (!near) merged.push(s);
+  }
+  merged.sort((a, b) => a.hitTime - b.hitTime);
+  return merged;
+}
+
+function ensureTailNote(chart: PlayNote[], mediaDurationMs: number): PlayNote[] {
+  if (mediaDurationMs <= 0) return chart;
+  const target = Math.max(1200, Math.round(mediaDurationMs - 24));
+  const nearTail = chart.some((n) => Math.abs((n.durationMs > 0 ? n.holdEndTime : n.hitTime) - target) <= 70);
+  if (nearTail) return chart;
+  const occupied = new Set<number>();
+  for (const n of chart) {
+    if (n.durationMs > 0 && target >= n.hitTime - 20 && target <= n.holdEndTime + 20) occupied.add(n.lane);
+  }
+  let lane = 1;
+  for (let i = 0; i < LANE_COUNT; i += 1) {
+    if (!occupied.has(i)) {
+      lane = i;
+      break;
+    }
+  }
+  return [
+    ...chart,
+    {
+      lane,
+      hitTime: target,
+      durationMs: 0,
+      holdEndTime: target,
+      judged: false,
+      holding: false,
+      holdBroken: false,
+      headJudged: false,
+      tailJudged: false,
+      element: null,
+      lastStyleKey: "",
+    },
+  ].sort((a, b) => a.hitTime - b.hitTime);
+}
+
 function chooseLaneFromMidi(midi: number, minMidi: number, maxMidi: number): number {
   const tNorm = (midi - minMidi) / Math.max(1, maxMidi - minMidi);
   return Math.max(0, Math.min(3, Math.floor(tNorm * 4)));
@@ -687,8 +769,14 @@ export default function App(): JSX.Element {
   function rebuildChartForCurrentTime(): void {
     const rt = runtimeRef.current;
     const now = rt.gameRunning ? getTimelineMs() : 0;
-    const baseChart = eventsToNotes(getCurrentEvents(), settingsRef.current.chartTempoBpm);
-    rt.chart = fitChartToSongDuration(baseChart, rt.mediaDurationMs);
+    const bpm = settingsRef.current.chartTempoBpm;
+    let chart = fitChartToSongDuration(eventsToNotes(getCurrentEvents(), bpm), rt.mediaDurationMs);
+    if (isSparseChart(chart, rt.mediaDurationMs)) {
+      const support = buildSupportNotes(rt.mediaDurationMs, bpm);
+      chart = fitChartToSongDuration(mergeChartWithSupport(chart, support), rt.mediaDurationMs);
+    }
+    chart = ensureTailNote(chart, rt.mediaDurationMs);
+    rt.chart = removeOverlapsWithLongNotes(chart);
     rt.chartEndMs = Math.max(0, rt.mediaDurationMs - 8);
     rt.possiblePoints = rt.chart.reduce((s, n) => s + (n.durationMs > 0 ? 2200 : 1000), 0);
     if (notesLayerRef.current) notesLayerRef.current.innerHTML = "";
