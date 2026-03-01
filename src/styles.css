@@ -287,6 +287,126 @@ body {
   text-overflow: ellipsis;
 }
 
+body[data-ui-mode="mobile"] {
+  overflow-y: auto;
+  overflow-x: hidden;
+  align-items: start;
+  padding: 4px 0 10px;
+}
+
+body[data-ui-mode="mobile"] .app {
+  width: 100vw;
+  padding: 0 6px;
+  margin-top: 0;
+  gap: 6px;
+}
+
+body[data-ui-mode="mobile"] .topbar {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+body[data-ui-mode="mobile"] .title-wrap h1 {
+  font-size: 1.02rem;
+  letter-spacing: 0.01em;
+}
+
+body[data-ui-mode="mobile"] .title-wrap p {
+  font-size: 0.74rem;
+}
+
+body[data-ui-mode="mobile"] .status {
+  grid-template-columns: 1fr 1fr;
+  width: 100%;
+  gap: 5px;
+}
+
+body[data-ui-mode="mobile"] .status div {
+  padding: 5px 7px;
+  border-radius: 8px;
+}
+
+body[data-ui-mode="mobile"] .song-select-desktop {
+  display: none;
+}
+
+body[data-ui-mode="mobile"] .label {
+  font-size: 0.68rem;
+}
+
+body[data-ui-mode="mobile"] .status span {
+  font-size: 0.82rem;
+}
+
+body[data-ui-mode="mobile"] select {
+  width: 100%;
+  font-size: 0.78rem;
+  padding: 3px 5px;
+}
+
+body[data-ui-mode="mobile"] .playfield {
+  width: 100%;
+  height: min(54vh, 460px);
+  border-width: 1px;
+  border-radius: 10px;
+}
+
+body[data-ui-mode="mobile"] .mobile-song-chip {
+  display: block;
+  right: 6px;
+  top: 6px;
+  font-size: 0.72rem;
+  max-width: 72%;
+}
+
+body[data-ui-mode="mobile"] .cue {
+  font-size: 1.35rem;
+  transform: translate(-50%, 16px) scale(1);
+}
+
+body[data-ui-mode="mobile"] .countdown-overlay {
+  font-size: 3.2rem;
+}
+
+body[data-ui-mode="mobile"] .hit-feedback {
+  font-size: 1.2rem;
+  bottom: calc(var(--judge-line-bottom, 110px) + 10px);
+}
+
+body[data-ui-mode="mobile"] .controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+body[data-ui-mode="mobile"] .controls .progress {
+  grid-column: 1 / -1;
+  margin-left: 0;
+  font-size: 0.78rem;
+}
+
+body[data-ui-mode="mobile"] button {
+  padding: 6px 8px;
+  font-size: 0.8rem;
+  border-radius: 8px;
+}
+
+body[data-ui-mode="mobile"] .settings-card {
+  width: min(360px, 96vw);
+  padding: 12px;
+}
+
+body[data-ui-mode="mobile"] .settings-card h2 {
+  margin-bottom: 8px;
+  font-size: 1rem;
+}
+
+body[data-ui-mode="mobile"] .speed-row {
+  margin: 6px 0 10px;
+  gap: 8px;
+}
+
 .countdown-overlay {
   position: absolute;
   left: 50%;

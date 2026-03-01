@@ -77,6 +77,7 @@ type Runtime = {
   liveOffsetPendingMs: number;
   liveAdjustLastUiMs: number;
   liveAdjustFrozen: boolean;
+  audioPrimed: boolean;
 };
 
 function laneCenterAtDepth(lane: number, depth: number, width: number): number {
@@ -615,6 +616,7 @@ export default function App(): JSX.Element {
     liveOffsetPendingMs: 0,
     liveAdjustLastUiMs: 0,
     liveAdjustFrozen: false,
+    audioPrimed: false,
   });
 
   const [scores, setScores] = useState<ScoreMeta[]>([defaultScore]);
@@ -625,6 +627,7 @@ export default function App(): JSX.Element {
   );
 
   const [score, setScore] = useState(0);
+  const [uiMode, setUiMode] = useState<"auto" | "mobile" | "desktop">("auto");
   const [combo, setCombo] = useState(0);
   const [judge, setJudge] = useState("-");
   const [progress, setProgress] = useState("Ready");
@@ -654,6 +657,19 @@ export default function App(): JSX.Element {
   });
   const feedbackTimerRef = useRef<number | null>(null);
   const customAudioObjectUrlRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const ui = new URLSearchParams(window.location.search).get("ui");
+    if (ui === "mobile" || ui === "desktop") setUiMode(ui);
+    else setUiMode("auto");
+  }, []);
+
+  useEffect(() => {
+    document.body.setAttribute("data-ui-mode", uiMode);
+    return () => {
+      document.body.removeAttribute("data-ui-mode");
+    };
+  }, [uiMode]);
 
   useEffect(() => {
     const savedSpeed = Number(localStorage.getItem("pjsk_note_speed"));
@@ -1021,6 +1037,7 @@ export default function App(): JSX.Element {
     rt.liveOffsetPendingMs = 0;
     rt.liveAdjustLastUiMs = 0;
     rt.liveAdjustFrozen = false;
+    rt.audioPrimed = false;
     if (rt.audio) {
       rt.audio.pause();
       rt.audio.currentTime = 0;
@@ -1216,16 +1233,23 @@ export default function App(): JSX.Element {
     setCountdownText("");
     if (rt.audio) {
       rt.audio.currentTime = 0;
-      rt.audio.play().then(() => {
+      rt.audio.muted = false;
+      if (rt.audioPrimed && !rt.audio.paused) {
         rt.useSynthBgm = false;
         rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
         rt.awaitingAudioStart = false;
-      }).catch(() => {
-        rt.useSynthBgm = true;
-        rt.startedAt = performance.now();
-        rt.awaitingAudioStart = false;
-        startSynthBgm();
-      });
+      } else {
+        rt.audio.play().then(() => {
+          rt.useSynthBgm = false;
+          rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
+          rt.awaitingAudioStart = false;
+        }).catch(() => {
+          rt.useSynthBgm = true;
+          rt.startedAt = performance.now();
+          rt.awaitingAudioStart = false;
+          startSynthBgm();
+        });
+      }
     } else {
       rt.useSynthBgm = true;
       rt.startedAt = performance.now();
@@ -1233,6 +1257,38 @@ export default function App(): JSX.Element {
       startSynthBgm();
     }
     loop();
+  }
+
+  function activatePrimedAudioIfAvailable(): boolean {
+    const rt = runtimeRef.current;
+    if (!rt.audio) return false;
+    rt.audio.currentTime = 0;
+    rt.audio.muted = false;
+    if (rt.audioPrimed && !rt.audio.paused) {
+      rt.useSynthBgm = false;
+      rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
+      return true;
+    }
+    return false;
+  }
+
+  function startAudioNowOrFallback(): void {
+    const rt = runtimeRef.current;
+    if (activatePrimedAudioIfAvailable()) return;
+    if (rt.audio) {
+      rt.audio.play().then(() => {
+        rt.useSynthBgm = false;
+        rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
+      }).catch(() => {
+        rt.useSynthBgm = true;
+        rt.startedAt = performance.now();
+        startSynthBgm();
+      });
+    } else {
+      rt.useSynthBgm = true;
+      rt.startedAt = performance.now();
+      startSynthBgm();
+    }
   }
 
   function calculateCalibrationOffset(taps: number[], anchors: number[]): number | null {
@@ -1267,21 +1323,7 @@ export default function App(): JSX.Element {
     rt.calibrationActive = true;
     setProgress("Calibration 10s: tap Space / D F J K");
     setJudge("TAP");
-    if (rt.audio) {
-      rt.useSynthBgm = false;
-      rt.audio.currentTime = 0;
-      rt.audio.play().then(() => {
-        rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
-      }).catch(() => {
-        rt.useSynthBgm = true;
-        rt.startedAt = performance.now();
-        startSynthBgm();
-      });
-    } else {
-      rt.useSynthBgm = true;
-      rt.startedAt = performance.now();
-      startSynthBgm();
-    }
+    startAudioNowOrFallback();
 
     rt.calibrationTimer = window.setTimeout(() => {
       const delta = calculateCalibrationOffset(rt.calibrationTapTimes, rt.calibrationAnchorTimes);
@@ -1317,14 +1359,14 @@ export default function App(): JSX.Element {
     if (rt.audio) {
       rt.audio.currentTime = 0;
       rt.audio.muted = true;
+      rt.audioPrimed = false;
       rt.audio.play().then(() => {
-        rt.audio?.pause();
-        if (rt.audio) {
-          rt.audio.currentTime = 0;
-          rt.audio.muted = false;
-        }
+        rt.audioPrimed = true;
       }).catch(() => {
-        if (rt.audio) rt.audio.muted = false;
+        if (rt.audio) {
+          rt.audio.muted = false;
+          rt.audioPrimed = false;
+        }
       });
     } else {
       rt.useSynthBgm = true;
@@ -1829,7 +1871,7 @@ export default function App(): JSX.Element {
 
         <section className="playfield-wrap">
           <div className="playfield" id="playfield" ref={playfieldRef}>
-            <div className="mobile-song-chip" aria-hidden="true">{selectedScore.title}</div>
+            <div className="mobile-song-chip" aria-hidden={uiMode !== "mobile"}>{selectedScore.title}</div>
             <div className="cue">{runtimeRef.current.gameRunning ? "" : "READY"}</div>
             <div className={`countdown-overlay ${countdownText ? "" : "hidden"}`}>{countdownText}</div>
             <div className="judge-line" />
