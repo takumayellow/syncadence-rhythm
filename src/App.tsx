@@ -1802,7 +1802,7 @@ export default function App(): JSX.Element {
               <span className="label">BGM</span>
               <span>{customAudioName ? `custom: ${customAudioName}` : isMidiUrl(getEffectiveAudioUrl()) ? "MIDI synth" : "audio file"}</span>
             </div>
-            <div>
+            <div className="song-select-desktop">
               <span className="label">曲リスト</span>
               <select value={selectedScoreId} onChange={(e) => setSelectedScoreId(e.target.value)}>
                 {scores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
@@ -1813,6 +1813,7 @@ export default function App(): JSX.Element {
 
         <section className="playfield-wrap">
           <div className="playfield" id="playfield" ref={playfieldRef}>
+            <div className="mobile-song-chip" aria-hidden="true">{selectedScore.title}</div>
             <div className="cue">{runtimeRef.current.gameRunning ? "" : "READY"}</div>
             <div className={`countdown-overlay ${countdownText ? "" : "hidden"}`}>{countdownText}</div>
             <div className="judge-line" />
@@ -1894,6 +1895,13 @@ export default function App(): JSX.Element {
           <div className="speed-row">
             <input type="range" min={50} max={110} step={0.5} value={chartTempoBpm} onChange={(e) => { setChartTempoBpmState(Number(e.target.value)); rebuildChartForCurrentTime(); }} />
             <span>{chartTempoBpm.toFixed(1)}</span>
+          </div>
+          <label>曲リスト</label>
+          <div className="speed-row">
+            <select value={selectedScoreId} onChange={(e) => setSelectedScoreId(e.target.value)}>
+              {scores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+            </select>
+            <span>{selectedScore.artist}</span>
           </div>
           <div className="speed-row">
             <button onClick={toggleTapTempo}>TAP TEMPO</button>

@@ -270,6 +270,23 @@ body {
   pointer-events: none;
 }
 
+.mobile-song-chip {
+  display: none;
+  position: absolute;
+  right: 8px;
+  top: 8px;
+  z-index: 9;
+  max-width: 68%;
+  padding: 4px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(7, 14, 30, 0.62);
+  font: 700 0.78rem "Zen Kaku Gothic New", sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .countdown-overlay {
   position: absolute;
   left: 50%;
@@ -481,6 +498,10 @@ button.primary {
     width: 100%;
   }
 
+  .song-select-desktop {
+    display: none;
+  }
+
   .playfield {
     width: 100%;
     height: min(62vh, 560px);
@@ -501,6 +522,10 @@ button.primary {
 
   .hit-feedback {
     font-size: 1.7rem;
+  }
+
+  .mobile-song-chip {
+    display: block;
   }
 }
 
@@ -627,6 +652,13 @@ button.primary {
   .speed-row {
     margin: 6px 0 10px;
     gap: 8px;
+  }
+
+  .mobile-song-chip {
+    right: 6px;
+    top: 6px;
+    font-size: 0.72rem;
+    max-width: 72%;
   }
 }
 
