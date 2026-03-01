@@ -8,6 +8,8 @@ const LANE_COUNT = 4;
 const HIT_KEYS = ["KeyD", "KeyF", "KeyJ", "KeyK"];
 const BASE_APPROACH_MS = 2100;
 const NOTE_BASE_WIDTH = 118;
+const AUTO_CALIBRATION_MS = 10000;
+const LIVE_ADJUST_WINDOW_MS = 30000;
 
 const JUDGE_WINDOWS = {
   perfect: 45,
@@ -69,6 +71,10 @@ type Runtime = {
   liveAdjustSamples: number[];
   liveAdjustLastApplyMs: number;
   sweepIndex: number;
+  liveShiftPendingMs: number;
+  liveOffsetPendingMs: number;
+  liveAdjustLastUiMs: number;
+  liveAdjustFrozen: boolean;
 };
 
 function laneCenterAtDepth(lane: number, depth: number, width: number): number {
@@ -79,6 +85,17 @@ function laneCenterAtDepth(lane: number, depth: number, width: number): number {
   const xNear = center + t * nearSpread;
   const xFar = center + t * farSpread;
   return xFar + (xNear - xFar) * depth;
+}
+
+function laneBoundsAtDepth(lane: number, depth: number, width: number): { left: number; right: number } {
+  const centers = Array.from({ length: LANE_COUNT }, (_, i) => laneCenterAtDepth(i, depth, width));
+  const bounds = new Array<number>(LANE_COUNT + 1);
+  bounds[0] = centers[0] - (centers[1] - centers[0]) / 2;
+  for (let i = 1; i < LANE_COUNT; i += 1) {
+    bounds[i] = (centers[i - 1] + centers[i]) / 2;
+  }
+  bounds[LANE_COUNT] = centers[LANE_COUNT - 1] + (centers[LANE_COUNT - 1] - centers[LANE_COUNT - 2]) / 2;
+  return { left: bounds[lane], right: bounds[lane + 1] };
 }
 
 function clamp01(x: number): number {
@@ -377,6 +394,49 @@ function applyLongNoteQuota(notes: PlayNote[], beatMs: number, minRatio = 0.12, 
   return out;
 }
 
+function rebalanceLongRuns(notes: PlayNote[], maxConsecutiveLong = 2): PlayNote[] {
+  if (!notes.length) return notes;
+  const out = [...notes].sort((a, b) => a.hitTime - b.hitTime);
+  let run = 0;
+  for (let i = 0; i < out.length; i += 1) {
+    const n = out[i];
+    if (n.durationMs > 0) {
+      run += 1;
+      if (run > maxConsecutiveLong) {
+        out[i] = { ...n, durationMs: 0, holdEndTime: n.hitTime };
+        run = 0;
+      }
+    } else {
+      run = 0;
+    }
+  }
+  return out;
+}
+
+function rebalanceTailLongRatio(notes: PlayNote[], mediaDurationMs: number, maxTailLongRatio = 0.46): PlayNote[] {
+  if (!notes.length || !Number.isFinite(mediaDurationMs) || mediaDurationMs <= 0) return notes;
+  const out = [...notes].sort((a, b) => a.hitTime - b.hitTime);
+  const tailStart = mediaDurationMs * 0.72;
+  const tailIndices = out
+    .map((n, i) => ({ n, i }))
+    .filter((x) => x.n.hitTime >= tailStart)
+    .map((x) => x.i);
+  if (tailIndices.length < 6) return out;
+  let tailLong = tailIndices.filter((i) => out[i].durationMs > 0).length;
+  if (tailLong / tailIndices.length <= maxTailLongRatio) return out;
+  const longCandidates = tailIndices
+    .filter((i) => out[i].durationMs > 0)
+    .sort((a, b) => out[a].durationMs - out[b].durationMs);
+  const targetLong = Math.floor(tailIndices.length * maxTailLongRatio);
+  for (const idx of longCandidates) {
+    if (tailLong <= targetLong) break;
+    const n = out[idx];
+    out[idx] = { ...n, durationMs: 0, holdEndTime: n.hitTime };
+    tailLong -= 1;
+  }
+  return out;
+}
+
 function chooseLaneFromMidi(midi: number, minMidi: number, maxMidi: number): number {
   const tNorm = (midi - minMidi) / Math.max(1, maxMidi - minMidi);
   return Math.max(0, Math.min(3, Math.floor(tNorm * 4)));
@@ -540,6 +600,10 @@ export default function App(): JSX.Element {
     liveAdjustSamples: [],
     liveAdjustLastApplyMs: 0,
     sweepIndex: 0,
+    liveShiftPendingMs: 0,
+    liveOffsetPendingMs: 0,
+    liveAdjustLastUiMs: 0,
+    liveAdjustFrozen: false,
   });
 
   const [scores, setScores] = useState<ScoreMeta[]>([defaultScore]);
@@ -559,6 +623,7 @@ export default function App(): JSX.Element {
   const [customAudioName, setCustomAudioName] = useState<string>("");
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
   const [liveAdjustEnabled, setLiveAdjustEnabled] = useState(true);
+  const [recalibrateOnNextStart, setRecalibrateOnNextStart] = useState(false);
   const [noteSpeed, setNoteSpeed] = useState(15);
   const [timingOffsetMs, setTimingOffsetMs] = useState(0);
   const [chartTempoBpm, setChartTempoBpmState] = useState(66);
@@ -629,12 +694,14 @@ export default function App(): JSX.Element {
 
   useEffect(() => {
     setSongTitle(`${selectedScore.title} / ${selectedScore.artist}`);
+    setRecalibrateOnNextStart(false);
     if (customAudioObjectUrlRef.current) {
       URL.revokeObjectURL(customAudioObjectUrlRef.current);
       customAudioObjectUrlRef.current = null;
     }
     setCustomAudioUrl(null);
     setCustomAudioName("");
+    setTimingOffsetMs(selectedScore.offsetMs || 0);
     setChartTempoBpmState(selectedScore.bpm || 66);
     const rt = runtimeRef.current;
     rt.importedEvents = [];
@@ -718,8 +785,8 @@ export default function App(): JSX.Element {
           lastStyleKey: "",
         };
       });
-      const withQuota = applyLongNoteQuota(removeOverlapsWithLongNotes(strictMapped), beatMs, 0.14, 0.32);
-      return removeOverlapsWithLongNotes(withQuota);
+      const withQuota = applyLongNoteQuota(removeOverlapsWithLongNotes(strictMapped), beatMs, 0.14, 0.3);
+      return removeOverlapsWithLongNotes(rebalanceLongRuns(withQuota, 2));
     }
 
     let longCount = 0;
@@ -767,8 +834,8 @@ export default function App(): JSX.Element {
       });
       resolved = removeOverlapsWithLongNotes(resolved);
     }
-    resolved = applyLongNoteQuota(resolved, beatMs, 0.08, 0.26);
-    return resolved;
+    resolved = applyLongNoteQuota(resolved, beatMs, 0.1, 0.26);
+    return rebalanceLongRuns(resolved, 2);
   }
 
   function getCurrentEvents(): ScoreEvent[] {
@@ -905,6 +972,8 @@ export default function App(): JSX.Element {
     if (!strictMode) {
       chart = ensureTailNote(chart, rt.mediaDurationMs);
     }
+    chart = rebalanceTailLongRatio(chart, rt.mediaDurationMs, 0.45);
+    chart = rebalanceLongRuns(chart, 2);
     rt.chart = removeOverlapsWithLongNotes(chart);
     rt.sweepIndex = 0;
     rt.chartEndMs = Math.max(0, rt.mediaDurationMs - 8);
@@ -937,6 +1006,10 @@ export default function App(): JSX.Element {
     rt.useSynthBgm = false;
     rt.liveAdjustSamples = [];
     rt.liveAdjustLastApplyMs = 0;
+    rt.liveShiftPendingMs = 0;
+    rt.liveOffsetPendingMs = 0;
+    rt.liveAdjustLastUiMs = 0;
+    rt.liveAdjustFrozen = false;
     if (rt.audio) {
       rt.audio.pause();
       rt.audio.currentTime = 0;
@@ -1005,9 +1078,40 @@ export default function App(): JSX.Element {
     rt.chartEndMs += shiftMs;
   }
 
+  function applySmoothLiveAdjust(rawMs: number): void {
+    const rt = runtimeRef.current;
+    if (!liveAdjustEnabled || rt.calibrationActive || rt.liveAdjustFrozen) return;
+    if (rawMs > LIVE_ADJUST_WINDOW_MS) {
+      rt.liveShiftPendingMs = 0;
+      rt.liveOffsetPendingMs = 0;
+      rt.liveAdjustFrozen = true;
+      persistTuneForSong(Math.round(settingsRef.current.timingOffsetMs), settingsRef.current.chartTempoBpm);
+      return;
+    }
+
+    if (Math.abs(rt.liveShiftPendingMs) > 0.15) {
+      const step = Math.max(-5.2, Math.min(5.2, rt.liveShiftPendingMs));
+      shiftPendingNotes(step);
+      rt.liveShiftPendingMs -= step;
+    }
+
+    if (Math.abs(rt.liveOffsetPendingMs) > 0.1) {
+      const stepOff = Math.max(-2.2, Math.min(2.2, rt.liveOffsetPendingMs));
+      const next = Math.max(-300, Math.min(300, settingsRef.current.timingOffsetMs + stepOff));
+      settingsRef.current.timingOffsetMs = next;
+      rt.liveOffsetPendingMs -= stepOff;
+      if (rawMs - rt.liveAdjustLastUiMs >= 180) {
+        setTimingOffsetMs(Math.round(next));
+        persistTuneForSong(Math.round(next), settingsRef.current.chartTempoBpm);
+        rt.liveAdjustLastUiMs = rawMs;
+      }
+    }
+  }
+
   function registerLiveTimingDelta(deltaMs: number): void {
     const rt = runtimeRef.current;
-    if (!liveAdjustEnabled || rt.calibrationActive) return;
+    if (!liveAdjustEnabled || rt.calibrationActive || rt.liveAdjustFrozen) return;
+    if (getTimelineMs() > LIVE_ADJUST_WINDOW_MS) return;
     if (!Number.isFinite(deltaMs) || Math.abs(deltaMs) > 340) return;
     rt.liveAdjustSamples.push(deltaMs);
     if (rt.liveAdjustSamples.length > 44) rt.liveAdjustSamples.shift();
@@ -1022,12 +1126,9 @@ export default function App(): JSX.Element {
     const avg = core.reduce((s, v) => s + v, 0) / core.length; // + => player late
     const correction = Math.max(-85, Math.min(85, avg * 1.45));
     if (Math.abs(correction) < 0.8) return;
-    // Extra-strong mode: move pending chart itself toward player's rhythm.
-    shiftPendingNotes(correction);
-    const next = Math.max(-300, Math.min(300, Math.round(settingsRef.current.timingOffsetMs - correction)));
-    settingsRef.current.timingOffsetMs = next;
-    setTimingOffsetMs(next);
-    persistTuneForSong(next, settingsRef.current.chartTempoBpm);
+    // Smooth strong mode: queue large correction and apply progressively.
+    rt.liveShiftPendingMs += correction;
+    rt.liveOffsetPendingMs += -correction * 0.55;
     rt.liveAdjustLastApplyMs = raw;
     rt.liveAdjustSamples = [];
   }
@@ -1143,7 +1244,7 @@ export default function App(): JSX.Element {
 
   function startCalibrationThenPlay(): void {
     const rt = runtimeRef.current;
-    const anchorMaxMs = 10000;
+    const anchorMaxMs = AUTO_CALIBRATION_MS;
     rt.gameRunning = true;
     rt.awaitingAudioStart = false;
     rt.lastProgressUpdateMs = -1000;
@@ -1177,13 +1278,15 @@ export default function App(): JSX.Element {
         const next = Math.max(-300, Math.min(300, Math.round(settingsRef.current.timingOffsetMs + delta)));
         settingsRef.current.timingOffsetMs = next;
         setTimingOffsetMs(next);
+        persistTuneForSong(next, settingsRef.current.chartTempoBpm);
+        setRecalibrateOnNextStart(false);
         setProgress(`Calibration applied: ${delta > 0 ? "+" : ""}${Math.round(delta)}ms`);
       } else {
         setProgress("Calibration skipped (not enough taps)");
       }
       resetGame();
       startGame(true);
-    }, 10000);
+    }, AUTO_CALIBRATION_MS);
     loop();
   }
 
@@ -1224,7 +1327,8 @@ export default function App(): JSX.Element {
     }, 1400);
     const t4 = window.setTimeout(() => {
       rt.countdown = [];
-      if (!skipCalibration && autoSyncEnabled && rt.chart.length > 30) {
+      const shouldCalibrate = autoSyncEnabled && rt.chart.length > 30 && (recalibrateOnNextStart || !hasTuneForSong(selectedScore));
+      if (!skipCalibration && shouldCalibrate) {
         setCountdownText("");
         startCalibrationThenPlay();
         return;
@@ -1306,15 +1410,21 @@ export default function App(): JSX.Element {
       const tailLinear = clamp01(1 - (tailTime - nowMs) / approachMs);
       const depthHead = Math.pow(headLinear, 1.15);
       const depthTail = Math.pow(tailLinear, 1.15);
-      const yHead = 55 + (judgeLineY - 55) * depthHead;
-      const yTail = 55 + (judgeLineY - 55) * depthTail;
+      const yHeadRaw = 55 + (judgeLineY - 55) * depthHead;
+      const yTailRaw = 55 + (judgeLineY - 55) * depthTail;
 
-      const wHead = NOTE_BASE_WIDTH * (0.58 + depthHead * 1.2);
-      const wTail = NOTE_BASE_WIDTH * (0.58 + depthTail * 1.2);
+      const laneHead = laneBoundsAtDepth(note.lane, depthHead, pf.clientWidth);
+      const laneTail = laneBoundsAtDepth(note.lane, depthTail, pf.clientWidth);
+      const laneHeadW = Math.max(22, laneHead.right - laneHead.left);
+      const laneTailW = Math.max(16, laneTail.right - laneTail.left);
+      const wHead = Math.min(NOTE_BASE_WIDTH * (0.52 + depthHead * 1.1), laneHeadW * 0.84);
+      const wTail = Math.min(NOTE_BASE_WIDTH * (0.52 + depthTail * 1.1), laneTailW * 0.84);
       const hHead = 26 * (0.58 + depthHead * 1.2);
       const hTail = 26 * (0.58 + depthTail * 1.2);
-      const xHead = laneCenterAtDepth(note.lane, depthHead, pf.clientWidth) - wHead / 2;
-      const xTail = laneCenterAtDepth(note.lane, depthTail, pf.clientWidth) - wTail / 2;
+      const yHead = Math.min(yHeadRaw, judgeLineY - hHead / 2);
+      const yTail = Math.min(yTailRaw, judgeLineY - hTail / 2);
+      const xHead = laneHead.left + (laneHeadW - wHead) / 2;
+      const xTail = laneTail.left + (laneTailW - wTail) / 2;
       const skew = (note.lane - 1.5) * -1.8 * (1 - depthHead);
 
       if (!note.element) createNoteElement(note);
@@ -1469,6 +1579,7 @@ export default function App(): JSX.Element {
     if (rt.rafId) cancelAnimationFrame(rt.rafId);
     rt.audio?.pause();
     stopSynthBgm();
+    persistTuneForSong(Math.round(settingsRef.current.timingOffsetMs), settingsRef.current.chartTempoBpm);
     setProgress("Finished");
     const acc = rt.possiblePoints > 0 ? (rt.achievedPoints / rt.possiblePoints) * 100 : 0;
     const clear = acc >= 72 && rt.missCount < Math.max(30, Math.floor(rt.chart.length * 0.22));
@@ -1484,9 +1595,9 @@ export default function App(): JSX.Element {
     }
     if (rt.calibrationActive) {
       const rawCal = getTimelineMs();
-      const calSec = Math.min(10, rawCal / 1000);
+      const calSec = Math.min(AUTO_CALIBRATION_MS / 1000, rawCal / 1000);
       if (rawCal - rt.lastProgressUpdateMs >= 120) {
-        setProgress(`Calibrating ${calSec.toFixed(1)}s / 10.0s`);
+        setProgress(`Calibrating ${calSec.toFixed(1)}s / ${(AUTO_CALIBRATION_MS / 1000).toFixed(1)}s`);
         rt.lastProgressUpdateMs = rawCal;
       }
       rt.rafId = requestAnimationFrame(loop);
@@ -1494,6 +1605,7 @@ export default function App(): JSX.Element {
     }
     const rawMs = getTimelineMs();
     const now = rawMs + settingsRef.current.timingOffsetMs;
+    applySmoothLiveAdjust(rawMs);
     const audioEnded = !!(
       rt.audio &&
       !rt.useSynthBgm &&
@@ -1575,6 +1687,10 @@ export default function App(): JSX.Element {
     return `pjsk_song_tune_${encodeURIComponent(meta.audioUrl || meta.id)}`;
   }
 
+  function hasTuneForSong(meta: ScoreMeta): boolean {
+    return !!localStorage.getItem(tuneKey(meta));
+  }
+
   function persistTuneForSong(timing: number, bpm: number): void {
     localStorage.setItem(
       tuneKey(selectedScore),
@@ -1584,6 +1700,7 @@ export default function App(): JSX.Element {
 
   function saveTuneForSong(): void {
     persistTuneForSong(timingOffsetMs, chartTempoBpm);
+    setRecalibrateOnNextStart(false);
     setProgress("Saved tune for this song");
   }
 
@@ -1601,8 +1718,9 @@ export default function App(): JSX.Element {
 
   function resetTuneForSong(): void {
     localStorage.removeItem(tuneKey(selectedScore));
-    setTimingOffsetMs(0);
+    setTimingOffsetMs(selectedScore.offsetMs || 0);
     setChartTempoBpmState(selectedScore.bpm || 66);
+    setRecalibrateOnNextStart(true);
     rebuildChartForCurrentTime();
     setProgress("Reset tune for this song");
   }
@@ -1785,7 +1903,14 @@ export default function App(): JSX.Element {
             <button onClick={() => setAutoSyncEnabled((v) => !v)}>
               {autoSyncEnabled ? "ON" : "OFF"}
             </button>
-            <span>{autoSyncEnabled ? "tap calibration before play" : "start immediately"}</span>
+            <span>{autoSyncEnabled ? "初回/再測定時のみ開始前に10秒測定" : "常に測定なしで開始"}</span>
+          </div>
+          <label>再測定（次回開始時）</label>
+          <div className="speed-row">
+            <button onClick={() => setRecalibrateOnNextStart((v) => !v)}>
+              {recalibrateOnNextStart ? "ON" : "OFF"}
+            </button>
+            <span>{recalibrateOnNextStart ? "次回STARTで10秒測定を実施" : "保存済み補正をそのまま使用"}</span>
           </div>
           <label>調整モード（プレイ中）</label>
           <div className="speed-row">
