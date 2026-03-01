@@ -531,6 +531,105 @@ button.primary {
   }
 }
 
+/* Galaxy S23 class phones (360x780 around) */
+@media (max-width: 390px) and (max-height: 900px) {
+  body {
+    padding: 4px 0 10px;
+  }
+
+  .app {
+    padding: 0 6px;
+    gap: 6px;
+  }
+
+  .topbar {
+    gap: 6px;
+  }
+
+  .title-wrap h1 {
+    font-size: 1.02rem;
+    letter-spacing: 0.01em;
+  }
+
+  .title-wrap p {
+    font-size: 0.74rem;
+  }
+
+  .status {
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+
+  .status div {
+    padding: 5px 7px;
+  }
+
+  .label {
+    font-size: 0.68rem;
+  }
+
+  .status span {
+    font-size: 0.82rem;
+  }
+
+  select {
+    width: 100%;
+    font-size: 0.78rem;
+    padding: 3px 5px;
+  }
+
+  .playfield {
+    width: 100%;
+    height: min(54vh, 460px);
+    border-width: 1px;
+    border-radius: 10px;
+  }
+
+  .cue {
+    font-size: 1.35rem;
+    transform: translate(-50%, 16px) scale(1);
+  }
+
+  .countdown-overlay {
+    font-size: 3.2rem;
+  }
+
+  .hit-feedback {
+    font-size: 1.2rem;
+    bottom: calc(var(--judge-line-bottom, 110px) + 10px);
+  }
+
+  .controls {
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  button {
+    padding: 6px 8px;
+    font-size: 0.8rem;
+    border-radius: 8px;
+  }
+
+  .progress {
+    font-size: 0.78rem;
+  }
+
+  .settings-card {
+    width: min(360px, 96vw);
+    padding: 12px;
+  }
+
+  .settings-card h2 {
+    margin-bottom: 8px;
+    font-size: 1rem;
+  }
+
+  .speed-row {
+    margin: 6px 0 10px;
+    gap: 8px;
+  }
+}
+
 select {
   width: 170px;
   font: 600 0.88rem "Zen Kaku Gothic New", sans-serif;
