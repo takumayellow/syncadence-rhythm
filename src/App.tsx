@@ -371,6 +371,13 @@ function assignLanesForFlow(events: ScoreEvent[], bpm: number): number[] {
   return lanes;
 }
 
+function assignLanesStrict(events: ScoreEvent[]): number[] {
+  if (!events.length) return [];
+  const minMidi = Math.min(...events.map((e) => e.midi));
+  const maxMidi = Math.max(...events.map((e) => e.midi));
+  return events.map((e) => chooseLaneFromMidi(e.midi, minMidi, maxMidi));
+}
+
 async function fetchMusicXml(meta: ScoreMeta): Promise<ScoreEvent[]> {
   if (meta.mxlPath) {
     const res = await fetch(meta.mxlPath);
@@ -435,7 +442,7 @@ export default function App(): JSX.Element {
   const laneVisualRefs = useRef<SVGPolygonElement[]>([]);
 
   const settingsRef = useRef({
-    noteSpeed: 12,
+    noteSpeed: 15,
     timingOffsetMs: 0,
     chartTempoBpm: 66,
     judgeLineOffsetPx: 110,
@@ -483,7 +490,7 @@ export default function App(): JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
   const [customAudioName, setCustomAudioName] = useState<string>("");
-  const [noteSpeed, setNoteSpeed] = useState(12);
+  const [noteSpeed, setNoteSpeed] = useState(15);
   const [timingOffsetMs, setTimingOffsetMs] = useState(0);
   const [chartTempoBpm, setChartTempoBpmState] = useState(66);
   const [judgeLineOffsetPx, setJudgeLineOffsetPxState] = useState(110);
@@ -603,12 +610,20 @@ export default function App(): JSX.Element {
     return out;
   }
 
-  function eventsToNotes(events: ScoreEvent[], bpm: number): PlayNote[] {
-    const simplified = simplifyEventsForRhythm(events, bpm);
-    if (!simplified.length) return [];
+  function eventsToNotes(events: ScoreEvent[], bpm: number, strictMode = false): PlayNote[] {
+    const source = strictMode
+      ? events
+          .map((e) => ({
+            ...e,
+            timeMs: Number.isFinite(e.timeMs) ? e.timeMs : e.beatPos * (60000 / Math.max(1, bpm)),
+            durationMs: Number.isFinite(e.durationMs) ? e.durationMs : e.durationBeats * (60000 / Math.max(1, bpm)),
+          }))
+          .sort((a, b) => (a.timeMs as number) - (b.timeMs as number))
+      : simplifyEventsForRhythm(events, bpm);
+    if (!source.length) return [];
     const beatMs = 60000 / bpm;
-    const lanePlan = assignLanesForFlow(simplified, bpm);
-    const base = simplified.map((e, idx) => {
+    const lanePlan = strictMode ? assignLanesStrict(source) : assignLanesForFlow(source, bpm);
+    const base = source.map((e, idx) => {
       const lane = lanePlan[idx] ?? 1;
       const hitTime = Math.round(
         (selectedScore.offsetMs || 0) + (Number.isFinite(e.timeMs) ? (e.timeMs as number) : e.beatPos * beatMs)
@@ -616,6 +631,26 @@ export default function App(): JSX.Element {
       const rawDurationMs = Math.max(0, Number.isFinite(e.durationMs) ? (e.durationMs as number) : e.durationBeats * beatMs);
       return { lane, hitTime, rawDurationMs };
     }).sort((a, b) => a.hitTime - b.hitTime);
+
+    if (strictMode) {
+      const strictMapped = base.map((b) => {
+        const d = b.rawDurationMs >= 140 ? Math.round(b.rawDurationMs) : 0;
+        return {
+          lane: b.lane,
+          hitTime: b.hitTime,
+          durationMs: d,
+          holdEndTime: b.hitTime + d,
+          judged: false,
+          holding: false,
+          holdBroken: false,
+          headJudged: false,
+          tailJudged: false,
+          element: null,
+          lastStyleKey: "",
+        };
+      });
+      return removeOverlapsWithLongNotes(strictMapped);
+    }
 
     let longCount = 0;
     let lastLongHit = -10_000_000;
@@ -786,16 +821,19 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     const now = rt.gameRunning ? getTimelineMs() : 0;
     let bpm = settingsRef.current.chartTempoBpm;
+    const strictMode = !!selectedScore.strictMode;
     if (rt.chartSourceMode === "score" && rt.importedEvents.length && rt.midiPlaybackEvents.length === 0) {
       const autoBpm = estimateBpmForBeatScore(rt.importedEvents, rt.mediaDurationMs);
       if (autoBpm) bpm = autoBpm;
     }
-    let chart = fitChartToSongDuration(eventsToNotes(getCurrentEvents(), bpm), rt.mediaDurationMs);
-    if (isSparseChart(chart, rt.mediaDurationMs)) {
+    let chart = fitChartToSongDuration(eventsToNotes(getCurrentEvents(), bpm, strictMode), rt.mediaDurationMs);
+    if (!strictMode && isSparseChart(chart, rt.mediaDurationMs)) {
       const support = buildSupportNotes(rt.mediaDurationMs, bpm);
       chart = fitChartToSongDuration(mergeChartWithSupport(chart, support), rt.mediaDurationMs);
     }
-    chart = ensureTailNote(chart, rt.mediaDurationMs);
+    if (!strictMode) {
+      chart = ensureTailNote(chart, rt.mediaDurationMs);
+    }
     rt.chart = removeOverlapsWithLongNotes(chart);
     rt.chartEndMs = Math.max(0, rt.mediaDurationMs - 8);
     rt.possiblePoints = rt.chart.reduce((s, n) => s + (n.durationMs > 0 ? 2200 : 1000), 0);

@@ -8,6 +8,7 @@ export type ScoreMeta = {
   xmlPath?: string;
   mxlPath?: string;
   midiPath?: string;
+  strictMode?: boolean;
   offsetMs: number;
   bpm: number;
   lengthSec: number;

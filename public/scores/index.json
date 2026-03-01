@@ -5,6 +5,7 @@
     "artist": "Score + MP3",
     "audioUrl": "/scores/xml/shishiriennu-zuo-pin78-to-duan-diao.mp3",
     "mxlPath": "/scores/xml/shishiriennu-zuo-pin78-to-duan-diao.mxl",
+    "strictMode": true,
     "offsetMs": 0,
     "bpm": 100,
     "lengthSec": 240
