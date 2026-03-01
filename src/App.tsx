@@ -42,6 +42,10 @@ type Runtime = {
   chartEndMs: number;
   mediaDurationMs: number;
   gameRunning: boolean;
+  calibrationActive: boolean;
+  calibrationTapTimes: number[];
+  calibrationAnchorTimes: number[];
+  calibrationTimer: number | null;
   startedAt: number;
   rafId: number | null;
   audio: HTMLAudioElement | null;
@@ -317,6 +321,32 @@ function ensureTailNote(chart: PlayNote[], mediaDurationMs: number): PlayNote[] 
   ].sort((a, b) => a.hitTime - b.hitTime);
 }
 
+function applyLongNoteQuota(notes: PlayNote[], beatMs: number, minRatio = 0.12): PlayNote[] {
+  if (!notes.length) return notes;
+  const out = [...notes];
+  const target = Math.max(1, Math.floor(out.length * minRatio));
+  let current = out.filter((n) => n.durationMs > 0).length;
+  if (current >= target) return out;
+
+  const candidates = out
+    .map((n, i) => ({ i, n }))
+    .filter((x) => x.n.durationMs <= 0)
+    .sort((a, b) => b.n.hitTime - a.n.hitTime);
+
+  for (const c of candidates) {
+    if (current >= target) break;
+    const prev = out[c.i - 1];
+    const next = out[c.i + 1];
+    const prevGap = prev ? c.n.hitTime - prev.hitTime : Number.POSITIVE_INFINITY;
+    const nextGap = next ? next.hitTime - c.n.hitTime : Number.POSITIVE_INFINITY;
+    if (prevGap < beatMs * 0.42 || nextGap < beatMs * 0.42) continue;
+    const d = Math.round(Math.max(beatMs * 0.72, Math.min(beatMs * 2.2, Math.min(prevGap, nextGap) * 0.72)));
+    out[c.i] = { ...c.n, durationMs: d, holdEndTime: c.n.hitTime + d };
+    current += 1;
+  }
+  return out;
+}
+
 function chooseLaneFromMidi(midi: number, minMidi: number, maxMidi: number): number {
   const tNorm = (midi - minMidi) / Math.max(1, maxMidi - minMidi);
   return Math.max(0, Math.min(3, Math.floor(tNorm * 4)));
@@ -453,6 +483,10 @@ export default function App(): JSX.Element {
     chartEndMs: defaultScore.lengthSec * 1000,
     mediaDurationMs: defaultScore.lengthSec * 1000,
     gameRunning: false,
+    calibrationActive: false,
+    calibrationTapTimes: [],
+    calibrationAnchorTimes: [],
+    calibrationTimer: null,
     startedAt: 0,
     rafId: null,
     audio: null,
@@ -490,6 +524,7 @@ export default function App(): JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
   const [customAudioName, setCustomAudioName] = useState<string>("");
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
   const [noteSpeed, setNoteSpeed] = useState(15);
   const [timingOffsetMs, setTimingOffsetMs] = useState(0);
   const [chartTempoBpm, setChartTempoBpmState] = useState(66);
@@ -634,7 +669,7 @@ export default function App(): JSX.Element {
 
     if (strictMode) {
       const strictMapped = base.map((b) => {
-        const d = b.rawDurationMs >= 140 ? Math.round(b.rawDurationMs) : 0;
+        const d = b.rawDurationMs >= 100 ? Math.round(b.rawDurationMs) : 0;
         return {
           lane: b.lane,
           hitTime: b.hitTime,
@@ -649,7 +684,8 @@ export default function App(): JSX.Element {
           lastStyleKey: "",
         };
       });
-      return removeOverlapsWithLongNotes(strictMapped);
+      const withQuota = applyLongNoteQuota(removeOverlapsWithLongNotes(strictMapped), beatMs, 0.15);
+      return removeOverlapsWithLongNotes(withQuota);
     }
 
     let longCount = 0;
@@ -850,6 +886,13 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     rt.gameRunning = false;
     rt.awaitingAudioStart = false;
+    rt.calibrationActive = false;
+    rt.calibrationTapTimes = [];
+    rt.calibrationAnchorTimes = [];
+    if (rt.calibrationTimer) {
+      clearTimeout(rt.calibrationTimer);
+      rt.calibrationTimer = null;
+    }
     rt.mediaDurationMs = selectedScore.lengthSec * 1000;
     if (rt.rafId) cancelAnimationFrame(rt.rafId);
     rt.countdown.forEach((t) => clearTimeout(t));
@@ -976,7 +1019,99 @@ export default function App(): JSX.Element {
     setCombo(rt.combo);
   }
 
-  function startGame(): void {
+  function beginPlayAfterCountdown(): void {
+    const rt = runtimeRef.current;
+    rt.lastProgressUpdateMs = -1000;
+    rt.gameRunning = true;
+    rt.awaitingAudioStart = true;
+    setCountdownText("");
+    if (rt.audio) {
+      rt.audio.currentTime = 0;
+      rt.audio.play().then(() => {
+        rt.useSynthBgm = false;
+        rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
+        rt.awaitingAudioStart = false;
+      }).catch(() => {
+        rt.useSynthBgm = true;
+        rt.startedAt = performance.now();
+        rt.awaitingAudioStart = false;
+        startSynthBgm();
+      });
+    } else {
+      rt.useSynthBgm = true;
+      rt.startedAt = performance.now();
+      rt.awaitingAudioStart = false;
+      startSynthBgm();
+    }
+    loop();
+  }
+
+  function calculateCalibrationOffset(taps: number[], anchors: number[]): number | null {
+    if (taps.length < 6 || anchors.length < 8) return null;
+    const deltas: number[] = [];
+    for (const t of taps) {
+      let best = Number.POSITIVE_INFINITY;
+      let nearest = 0;
+      for (const a of anchors) {
+        const d = Math.abs(a - t);
+        if (d < best) {
+          best = d;
+          nearest = a;
+        }
+      }
+      if (best <= 240) deltas.push(nearest - t);
+    }
+    if (deltas.length < 5) return null;
+    return median(deltas);
+  }
+
+  function startCalibrationThenPlay(): void {
+    const rt = runtimeRef.current;
+    const anchorMaxMs = 10000;
+    rt.gameRunning = true;
+    rt.awaitingAudioStart = false;
+    rt.lastProgressUpdateMs = -1000;
+    rt.calibrationAnchorTimes = rt.chart
+      .map((n) => n.hitTime)
+      .filter((t) => t >= 350 && t <= anchorMaxMs);
+    rt.calibrationTapTimes = [];
+    rt.calibrationActive = true;
+    setProgress("Calibration 10s: tap Space / D F J K");
+    setJudge("TAP");
+    if (rt.audio) {
+      rt.audio.currentTime = 0;
+      rt.audio.play().then(() => {
+        rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
+      }).catch(() => {
+        rt.startedAt = performance.now();
+      });
+    } else {
+      rt.startedAt = performance.now();
+    }
+
+    rt.calibrationTimer = window.setTimeout(() => {
+      const delta = calculateCalibrationOffset(rt.calibrationTapTimes, rt.calibrationAnchorTimes);
+      if (rt.audio) {
+        rt.audio.pause();
+        rt.audio.currentTime = 0;
+      }
+      rt.calibrationActive = false;
+      rt.calibrationTimer = null;
+      if (delta !== null && Number.isFinite(delta)) {
+        const next = Math.max(-300, Math.min(300, Math.round(settingsRef.current.timingOffsetMs + delta)));
+        settingsRef.current.timingOffsetMs = next;
+        setTimingOffsetMs(next);
+        setProgress(`Calibration applied: ${delta > 0 ? "+" : ""}${Math.round(delta)}ms`);
+      } else {
+        setProgress("Calibration skipped (not enough taps)");
+      }
+      resetGame();
+      startGame(true);
+    }, 10000);
+    loop();
+  }
+
+  function startGame(skipCalibration = false): void {
     const rt = runtimeRef.current;
     if (rt.gameRunning || rt.countdown.length) return;
     setProgress("Counting...");
@@ -1013,29 +1148,12 @@ export default function App(): JSX.Element {
     }, 1400);
     const t4 = window.setTimeout(() => {
       rt.countdown = [];
-      rt.lastProgressUpdateMs = -1000;
-      rt.gameRunning = true;
-      rt.awaitingAudioStart = true;
-      setCountdownText("");
-      if (rt.audio) {
-        rt.audio.currentTime = 0;
-        rt.audio.play().then(() => {
-          rt.useSynthBgm = false;
-          rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
-          rt.awaitingAudioStart = false;
-        }).catch(() => {
-          rt.useSynthBgm = true;
-          rt.startedAt = performance.now();
-          rt.awaitingAudioStart = false;
-          startSynthBgm();
-        });
-      } else {
-        rt.useSynthBgm = true;
-        rt.startedAt = performance.now();
-        rt.awaitingAudioStart = false;
-        startSynthBgm();
+      if (!skipCalibration && autoSyncEnabled && rt.chart.length > 30) {
+        setCountdownText("");
+        startCalibrationThenPlay();
+        return;
       }
-      loop();
+      beginPlayAfterCountdown();
     }, 2100);
     rt.countdown = [t1, t2, t3, t4];
   }
@@ -1167,7 +1285,7 @@ export default function App(): JSX.Element {
 
   function pressLane(laneIdx: number): void {
     const rt = runtimeRef.current;
-    if (!rt.gameRunning || rt.awaitingAudioStart) return;
+    if (!rt.gameRunning || rt.awaitingAudioStart || rt.calibrationActive) return;
     const now = getSongTimeMs();
     let best: { note: PlayNote; abs: number; longHead: boolean } | null = null;
     let lateHold: PlayNote | null = null;
@@ -1248,6 +1366,11 @@ export default function App(): JSX.Element {
   function stopGame(): void {
     const rt = runtimeRef.current;
     rt.gameRunning = false;
+    rt.calibrationActive = false;
+    if (rt.calibrationTimer) {
+      clearTimeout(rt.calibrationTimer);
+      rt.calibrationTimer = null;
+    }
     if (rt.rafId) cancelAnimationFrame(rt.rafId);
     rt.audio?.pause();
     stopSynthBgm();
@@ -1261,6 +1384,16 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     if (!rt.gameRunning) return;
     if (rt.awaitingAudioStart) {
+      rt.rafId = requestAnimationFrame(loop);
+      return;
+    }
+    if (rt.calibrationActive) {
+      const rawCal = getTimelineMs();
+      const calSec = Math.min(10, rawCal / 1000);
+      if (rawCal - rt.lastProgressUpdateMs >= 120) {
+        setProgress(`Calibrating ${calSec.toFixed(1)}s / 10.0s`);
+        rt.lastProgressUpdateMs = rawCal;
+      }
       rt.rafId = requestAnimationFrame(loop);
       return;
     }
@@ -1334,6 +1467,15 @@ export default function App(): JSX.Element {
     });
   }
 
+  function registerCalibrationTap(): void {
+    const rt = runtimeRef.current;
+    if (!rt.calibrationActive) return;
+    rt.calibrationTapTimes.push(getTimelineMs());
+    if (rt.calibrationTapTimes.length > 120) {
+      rt.calibrationTapTimes.shift();
+    }
+  }
+
   function saveTuneForSong(): void {
     const key = `pjsk_song_tune_${encodeURIComponent(selectedScore.audioUrl || selectedScore.id)}`;
     localStorage.setItem(key, JSON.stringify({ timingOffsetMs, chartTempoBpm }));
@@ -1369,6 +1511,15 @@ export default function App(): JSX.Element {
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (runtimeRef.current.calibrationActive) {
+        if (e.code === "Space" || e.code === "KeyT" || HIT_KEYS.includes(e.code)) {
+          e.preventDefault();
+          registerCalibrationTap();
+          const idx = HIT_KEYS.indexOf(e.code);
+          if (idx >= 0) flashLane(idx);
+        }
+        return;
+      }
       if (tapTempoMode && (e.code === "Space" || e.code === "KeyT")) {
         e.preventDefault();
         registerTap();
@@ -1401,6 +1552,11 @@ export default function App(): JSX.Element {
   }, [tapTempoMode, tapTimes]);
 
   function onLanePointerDown(i: number): void {
+    if (runtimeRef.current.calibrationActive) {
+      registerCalibrationTap();
+      flashLane(i);
+      return;
+    }
     runtimeRef.current.lanePressed[i] = true;
     flashLane(i);
     pressLane(i);
@@ -1520,6 +1676,13 @@ export default function App(): JSX.Element {
           <div className="speed-row">
             <button onClick={toggleTapTempo}>TAP TEMPO</button>
             <span>{tapTempoState}</span>
+          </div>
+          <label>Auto Sync (10s)</label>
+          <div className="speed-row">
+            <button onClick={() => setAutoSyncEnabled((v) => !v)}>
+              {autoSyncEnabled ? "ON" : "OFF"}
+            </button>
+            <span>{autoSyncEnabled ? "tap calibration before play" : "start immediately"}</span>
           </div>
           <div className="speed-row">
             <input type="file" accept=".musicxml,.xml,.mxl,.mid,.midi" onChange={async (e) => {
