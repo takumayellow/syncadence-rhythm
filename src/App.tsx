@@ -26,9 +26,9 @@ const SCORE_MAP: Record<Judge, number> = {
 };
 
 const defaultScore: ScoreMeta = {
-  id: "lian-ai-cai-pan-40mp",
-  title: "shishiriennu-zuo-pin78-to-duan-diao",
-  artist: "Score + MP3",
+  id: "shishiriennu-op78-etude",
+  title: "シシリエンヌ 作品78 ト短調",
+  artist: "ガブリエル・フォーレ",
   audioUrl: "/scores/songs/shishiriennu-op78-etude/audio.mp3",
   mxlPath: "/scores/songs/shishiriennu-op78-etude/score.mxl",
   strictMode: true,
@@ -66,6 +66,9 @@ type Runtime = {
   score: number;
   useSynthBgm: boolean;
   awaitingAudioStart: boolean;
+  liveAdjustSamples: number[];
+  liveAdjustLastApplyMs: number;
+  sweepIndex: number;
 };
 
 function laneCenterAtDepth(lane: number, depth: number, width: number): number {
@@ -80,6 +83,17 @@ function laneCenterAtDepth(lane: number, depth: number, width: number): number {
 
 function clamp01(x: number): number {
   return Math.max(0, Math.min(1, x));
+}
+
+function lowerBoundHitTime(notes: PlayNote[], value: number): number {
+  let lo = 0;
+  let hi = notes.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (notes[mid].hitTime < value) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
 }
 
 function median(values: number[]): number {
@@ -321,12 +335,28 @@ function ensureTailNote(chart: PlayNote[], mediaDurationMs: number): PlayNote[] 
   ].sort((a, b) => a.hitTime - b.hitTime);
 }
 
-function applyLongNoteQuota(notes: PlayNote[], beatMs: number, minRatio = 0.12): PlayNote[] {
+function applyLongNoteQuota(notes: PlayNote[], beatMs: number, minRatio = 0.12, maxRatio = 0.35): PlayNote[] {
   if (!notes.length) return notes;
   const out = [...notes];
-  const target = Math.max(1, Math.floor(out.length * minRatio));
+  const minTarget = Math.max(1, Math.floor(out.length * minRatio));
+  const maxTarget = Math.max(minTarget, Math.ceil(out.length * maxRatio));
   let current = out.filter((n) => n.durationMs > 0).length;
-  if (current >= target) return out;
+
+  if (current > maxTarget) {
+    const longIdx = out
+      .map((n, i) => ({ i, n }))
+      .filter((x) => x.n.durationMs > 0)
+      .sort((a, b) => a.n.durationMs - b.n.durationMs)
+      .map((x) => x.i);
+    let cut = current - maxTarget;
+    for (const i of longIdx) {
+      if (cut <= 0) break;
+      out[i] = { ...out[i], durationMs: 0, holdEndTime: out[i].hitTime };
+      cut -= 1;
+      current -= 1;
+    }
+  }
+  if (current >= minTarget) return out;
 
   const candidates = out
     .map((n, i) => ({ i, n }))
@@ -334,7 +364,7 @@ function applyLongNoteQuota(notes: PlayNote[], beatMs: number, minRatio = 0.12):
     .sort((a, b) => b.n.hitTime - a.n.hitTime);
 
   for (const c of candidates) {
-    if (current >= target) break;
+    if (current >= minTarget) break;
     const prev = out[c.i - 1];
     const next = out[c.i + 1];
     const prevGap = prev ? c.n.hitTime - prev.hitTime : Number.POSITIVE_INFINITY;
@@ -507,6 +537,9 @@ export default function App(): JSX.Element {
     score: 0,
     useSynthBgm: false,
     awaitingAudioStart: false,
+    liveAdjustSamples: [],
+    liveAdjustLastApplyMs: 0,
+    sweepIndex: 0,
   });
 
   const [scores, setScores] = useState<ScoreMeta[]>([defaultScore]);
@@ -525,6 +558,7 @@ export default function App(): JSX.Element {
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
   const [customAudioName, setCustomAudioName] = useState<string>("");
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
+  const [liveAdjustEnabled, setLiveAdjustEnabled] = useState(true);
   const [noteSpeed, setNoteSpeed] = useState(15);
   const [timingOffsetMs, setTimingOffsetMs] = useState(0);
   const [chartTempoBpm, setChartTempoBpmState] = useState(66);
@@ -684,7 +718,7 @@ export default function App(): JSX.Element {
           lastStyleKey: "",
         };
       });
-      const withQuota = applyLongNoteQuota(removeOverlapsWithLongNotes(strictMapped), beatMs, 0.15);
+      const withQuota = applyLongNoteQuota(removeOverlapsWithLongNotes(strictMapped), beatMs, 0.14, 0.32);
       return removeOverlapsWithLongNotes(withQuota);
     }
 
@@ -733,6 +767,7 @@ export default function App(): JSX.Element {
       });
       resolved = removeOverlapsWithLongNotes(resolved);
     }
+    resolved = applyLongNoteQuota(resolved, beatMs, 0.08, 0.26);
     return resolved;
   }
 
@@ -871,6 +906,7 @@ export default function App(): JSX.Element {
       chart = ensureTailNote(chart, rt.mediaDurationMs);
     }
     rt.chart = removeOverlapsWithLongNotes(chart);
+    rt.sweepIndex = 0;
     rt.chartEndMs = Math.max(0, rt.mediaDurationMs - 8);
     rt.possiblePoints = rt.chart.reduce((s, n) => s + (n.durationMs > 0 ? 2200 : 1000), 0);
     if (notesLayerRef.current) notesLayerRef.current.innerHTML = "";
@@ -899,6 +935,8 @@ export default function App(): JSX.Element {
     rt.countdown = [];
     stopSynthBgm();
     rt.useSynthBgm = false;
+    rt.liveAdjustSamples = [];
+    rt.liveAdjustLastApplyMs = 0;
     if (rt.audio) {
       rt.audio.pause();
       rt.audio.currentTime = 0;
@@ -954,6 +992,29 @@ export default function App(): JSX.Element {
       setHitFeedback((prev) => ({ ...prev, visible: false }));
       feedbackTimerRef.current = null;
     }, 240);
+  }
+
+  function registerLiveTimingDelta(deltaMs: number): void {
+    const rt = runtimeRef.current;
+    if (!liveAdjustEnabled || rt.calibrationActive) return;
+    if (!Number.isFinite(deltaMs) || Math.abs(deltaMs) > 180) return;
+    rt.liveAdjustSamples.push(deltaMs);
+    if (rt.liveAdjustSamples.length > 28) rt.liveAdjustSamples.shift();
+    const raw = getTimelineMs();
+    if (rt.liveAdjustSamples.length < 10) return;
+    if (raw - rt.liveAdjustLastApplyMs < 1400) return;
+
+    const sorted = [...rt.liveAdjustSamples].sort((a, b) => a - b);
+    const cut = Math.floor(sorted.length * 0.15);
+    const core = sorted.slice(cut, sorted.length - cut);
+    if (!core.length) return;
+    const avg = core.reduce((s, v) => s + v, 0) / core.length;
+    const step = Math.max(-16, Math.min(16, avg * 0.35));
+    if (Math.abs(step) < 2.2) return;
+    const next = Math.max(-300, Math.min(300, Math.round(settingsRef.current.timingOffsetMs - step)));
+    settingsRef.current.timingOffsetMs = next;
+    setTimingOffsetMs(next);
+    rt.liveAdjustLastApplyMs = raw;
   }
 
   function applyJudge(note: PlayNote, j: Judge): void {
@@ -1181,8 +1242,26 @@ export default function App(): JSX.Element {
     const approachMs = BASE_APPROACH_MS * (10 / settingsRef.current.noteSpeed);
     const maxAhead = approachMs + 650;
     const pruneAhead = maxAhead + 520;
+    const windowStartMs = nowMs - 6000;
+    const windowEndMs = nowMs + pruneAhead;
+    const startIdx = Math.max(0, lowerBoundHitTime(rt.chart, windowStartMs) - 2);
+    const endIdx = Math.min(rt.chart.length, lowerBoundHitTime(rt.chart, windowEndMs + 1) + 2);
 
-    for (const note of rt.chart) {
+    while (rt.sweepIndex < startIdx) {
+      const old = rt.chart[rt.sweepIndex];
+      if (!old.judged) {
+        if (old.durationMs > 0) {
+          if (!old.headJudged) judgeLongHead(old, "miss");
+          if (!old.tailJudged) judgeLongTail(old, false);
+        } else {
+          applyJudge(old, "miss");
+        }
+      }
+      rt.sweepIndex += 1;
+    }
+
+    for (let i = startIdx; i < endIdx; i += 1) {
+      const note = rt.chart[i];
       if (note.judged) continue;
       const dt = note.hitTime - nowMs;
       if (dt > pruneAhead) {
@@ -1287,7 +1366,7 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     if (!rt.gameRunning || rt.awaitingAudioStart || rt.calibrationActive) return;
     const now = getSongTimeMs();
-    let best: { note: PlayNote; abs: number; longHead: boolean } | null = null;
+    let best: { note: PlayNote; abs: number; delta: number; longHead: boolean } | null = null;
     let lateHold: PlayNote | null = null;
 
     for (const note of rt.chart) {
@@ -1298,7 +1377,7 @@ export default function App(): JSX.Element {
           const a = Math.abs(d);
           if (d < -JUDGE_WINDOWS.miss) break;
           if (a <= JUDGE_WINDOWS.miss && (!best || a < best.abs)) {
-            best = { note, abs: a, longHead: true };
+            best = { note, abs: a, delta: d, longHead: true };
             continue;
           }
         }
@@ -1312,12 +1391,13 @@ export default function App(): JSX.Element {
       const a = Math.abs(d);
       if (d < -JUDGE_WINDOWS.miss) break;
       if (a <= JUDGE_WINDOWS.miss && (!best || a < best.abs)) {
-        best = { note, abs: a, longHead: false };
+        best = { note, abs: a, delta: d, longHead: false };
       }
     }
 
     if (best) {
       const j = judgeDelta(best.abs) ?? "miss";
+      if (j !== "miss") registerLiveTimingDelta(best.delta);
       if (best.longHead) judgeLongHead(best.note, j);
       else applyJudge(best.note, j);
       return;
@@ -1581,7 +1661,7 @@ export default function App(): JSX.Element {
               <span>{customAudioName ? `custom: ${customAudioName}` : isMidiUrl(getEffectiveAudioUrl()) ? "MIDI synth" : "audio file"}</span>
             </div>
             <div>
-              <span className="label">Score Set</span>
+              <span className="label">曲リスト</span>
               <select value={selectedScoreId} onChange={(e) => setSelectedScoreId(e.target.value)}>
                 {scores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
               </select>
@@ -1683,6 +1763,13 @@ export default function App(): JSX.Element {
               {autoSyncEnabled ? "ON" : "OFF"}
             </button>
             <span>{autoSyncEnabled ? "tap calibration before play" : "start immediately"}</span>
+          </div>
+          <label>調整モード（プレイ中）</label>
+          <div className="speed-row">
+            <button onClick={() => setLiveAdjustEnabled((v) => !v)}>
+              {liveAdjustEnabled ? "ON" : "OFF"}
+            </button>
+            <span>{liveAdjustEnabled ? "平均ズレを自動補正" : "補正しない"}</span>
           </div>
           <div className="speed-row">
             <input type="file" accept=".musicxml,.xml,.mxl,.mid,.midi" onChange={async (e) => {

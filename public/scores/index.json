@@ -1,8 +1,8 @@
 [
   {
     "id": "shishiriennu-op78-etude",
-    "title": "shishiriennu-zuo-pin78-to-duan-diao",
-    "artist": "Score + MP3",
+    "title": "シシリエンヌ 作品78 ト短調",
+    "artist": "ガブリエル・フォーレ",
     "audioUrl": "/scores/songs/shishiriennu-op78-etude/audio.mp3",
     "mxlPath": "/scores/songs/shishiriennu-op78-etude/score.mxl",
     "strictMode": true,
@@ -12,7 +12,7 @@
   },
   {
     "id": "lian-ai-cai-pan-40mp",
-    "title": "lian-ai-cai-pan-40mp",
+    "title": "恋愛裁判",
     "artist": "Score + MP3",
     "audioUrl": "/scores/songs/lian-ai-cai-pan-40mp/audio.mp3",
     "mxlPath": "/scores/songs/lian-ai-cai-pan-40mp/score.mxl",
@@ -22,8 +22,8 @@
   },
   {
     "id": "g-senjo-no-aria",
-    "title": "g-xian-shangnoaria",
-    "artist": "Score + MP3",
+    "title": "G線上のアリア",
+    "artist": "J.S.バッハ",
     "audioUrl": "/scores/songs/g-senjo-no-aria/audio.mp3",
     "mxlPath": "/scores/songs/g-senjo-no-aria/score.mxl",
     "strictMode": true,
@@ -33,8 +33,8 @@
   },
   {
     "id": "kanon-pachelbel",
-    "title": "kanon-pahheruberu",
-    "artist": "Score + MP3",
+    "title": "パッヘルベルのカノン",
+    "artist": "ヨハン・パッヘルベル",
     "audioUrl": "/scores/songs/kanon-pachelbel/audio.mp3",
     "mxlPath": "/scores/songs/kanon-pachelbel/score.mxl",
     "strictMode": true,
@@ -44,8 +44,8 @@
   },
   {
     "id": "chopin-nocturne",
-    "title": "Chopin Nocturne Op.9 No.2",
-    "artist": "Frederic Chopin",
+    "title": "ノクターン 作品9-2",
+    "artist": "フレデリック・ショパン",
     "audioUrl": "/assets/audio/Chopin_Nocturne_Op_9_No_2.ogg",
     "xmlPath": "/scores/xml/chopin_nocturne.musicxml",
     "offsetMs": 1650,
@@ -54,8 +54,8 @@
   },
   {
     "id": "chopin-practice-a",
-    "title": "Chopin Practice Variant A",
-    "artist": "Frederic Chopin",
+    "title": "ショパン練習譜面 A",
+    "artist": "フレデリック・ショパン",
     "audioUrl": "/assets/audio/Chopin_Nocturne_Op_9_No_2.ogg",
     "xmlPath": "/scores/xml/chopin_practice_a.musicxml",
     "offsetMs": 1650,
