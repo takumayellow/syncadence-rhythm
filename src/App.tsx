@@ -1008,22 +1008,26 @@ export default function App(): JSX.Element {
   function registerLiveTimingDelta(deltaMs: number): void {
     const rt = runtimeRef.current;
     if (!liveAdjustEnabled || rt.calibrationActive) return;
-    if (!Number.isFinite(deltaMs) || Math.abs(deltaMs) > 260) return;
+    if (!Number.isFinite(deltaMs) || Math.abs(deltaMs) > 340) return;
     rt.liveAdjustSamples.push(deltaMs);
-    if (rt.liveAdjustSamples.length > 36) rt.liveAdjustSamples.shift();
+    if (rt.liveAdjustSamples.length > 44) rt.liveAdjustSamples.shift();
     const raw = getTimelineMs();
-    if (rt.liveAdjustSamples.length < 7) return;
-    if (raw - rt.liveAdjustLastApplyMs < 700) return;
+    if (rt.liveAdjustSamples.length < 5) return;
+    if (raw - rt.liveAdjustLastApplyMs < 350) return;
 
     const sorted = [...rt.liveAdjustSamples].sort((a, b) => a - b);
-    const cut = Math.floor(sorted.length * 0.2);
+    const cut = Math.floor(sorted.length * 0.1);
     const core = sorted.slice(cut, sorted.length - cut);
     if (!core.length) return;
     const avg = core.reduce((s, v) => s + v, 0) / core.length; // + => player late
-    const correction = Math.max(-42, Math.min(42, avg * 0.85));
-    if (Math.abs(correction) < 1.2) return;
-    // Strong mode: move pending chart itself toward player's rhythm.
+    const correction = Math.max(-85, Math.min(85, avg * 1.45));
+    if (Math.abs(correction) < 0.8) return;
+    // Extra-strong mode: move pending chart itself toward player's rhythm.
     shiftPendingNotes(correction);
+    const next = Math.max(-300, Math.min(300, Math.round(settingsRef.current.timingOffsetMs - correction)));
+    settingsRef.current.timingOffsetMs = next;
+    setTimingOffsetMs(next);
+    persistTuneForSong(next, settingsRef.current.chartTempoBpm);
     rt.liveAdjustLastApplyMs = raw;
     rt.liveAdjustSamples = [];
   }
@@ -1567,16 +1571,25 @@ export default function App(): JSX.Element {
     }
   }
 
+  function tuneKey(meta: ScoreMeta): string {
+    return `pjsk_song_tune_${encodeURIComponent(meta.audioUrl || meta.id)}`;
+  }
+
+  function persistTuneForSong(timing: number, bpm: number): void {
+    localStorage.setItem(
+      tuneKey(selectedScore),
+      JSON.stringify({ timingOffsetMs: timing, chartTempoBpm: bpm })
+    );
+  }
+
   function saveTuneForSong(): void {
-    const key = `pjsk_song_tune_${encodeURIComponent(selectedScore.audioUrl || selectedScore.id)}`;
-    localStorage.setItem(key, JSON.stringify({ timingOffsetMs, chartTempoBpm }));
+    persistTuneForSong(timingOffsetMs, chartTempoBpm);
     setProgress("Saved tune for this song");
   }
 
   function loadTuneForSong(meta: ScoreMeta): void {
-    const key = `pjsk_song_tune_${encodeURIComponent(meta.audioUrl || meta.id)}`;
     try {
-      const raw = localStorage.getItem(key);
+      const raw = localStorage.getItem(tuneKey(meta));
       if (!raw) return;
       const s = JSON.parse(raw) as { timingOffsetMs?: number; chartTempoBpm?: number };
       if (Number.isFinite(s.timingOffsetMs)) setTimingOffsetMs(Math.max(-300, Math.min(300, Number(s.timingOffsetMs))));
@@ -1587,8 +1600,7 @@ export default function App(): JSX.Element {
   }
 
   function resetTuneForSong(): void {
-    const key = `pjsk_song_tune_${encodeURIComponent(selectedScore.audioUrl || selectedScore.id)}`;
-    localStorage.removeItem(key);
+    localStorage.removeItem(tuneKey(selectedScore));
     setTimingOffsetMs(0);
     setChartTempoBpmState(selectedScore.bpm || 66);
     rebuildChartForCurrentTime();
@@ -1780,7 +1792,7 @@ export default function App(): JSX.Element {
             <button onClick={() => setLiveAdjustEnabled((v) => !v)}>
               {liveAdjustEnabled ? "ON" : "OFF"}
             </button>
-            <span>{liveAdjustEnabled ? "平均ズレを強めに補正（譜面を追従）" : "補正しない"}</span>
+            <span>{liveAdjustEnabled ? "平均ズレを超強力補正＋曲別デフォルト保存" : "補正しない"}</span>
           </div>
           <div className="speed-row">
             <input type="file" accept=".musicxml,.xml,.mxl,.mid,.midi" onChange={async (e) => {
