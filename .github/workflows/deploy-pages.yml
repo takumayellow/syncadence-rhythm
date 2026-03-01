@@ -3,6 +3,8 @@ name: Deploy Mobile Build to GitHub Pages
 on:
   push:
     branches:
+      - main
+      - feature/chart-sync-refine
       - feature/mobile-layout
   workflow_dispatch:
 
