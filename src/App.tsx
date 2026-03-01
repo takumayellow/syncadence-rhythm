@@ -123,10 +123,6 @@ function isMidiUrl(url: string): boolean {
 function simplifyEventsForRhythm(events: ScoreEvent[], bpm: number): ScoreEvent[] {
   if (!events.length) return [];
   const beatMs = 60000 / Math.max(1, bpm);
-  const quarter = beatMs;
-  const eighth = beatMs / 2;
-  const triplet = beatMs / 3;
-  const snapChoices = [quarter, eighth, triplet];
   const absEvents = events
     .map((e) => {
       const timeMs = Number.isFinite(e.timeMs) ? (e.timeMs as number) : e.beatPos * beatMs;
@@ -135,24 +131,10 @@ function simplifyEventsForRhythm(events: ScoreEvent[], bpm: number): ScoreEvent[
     })
     .sort((a, b) => (a.timeMs as number) - (b.timeMs as number));
 
-  const snapped = absEvents.map((e) => {
-    const t = e.timeMs as number;
-    let bestTime = t;
-    let bestDiff = Number.POSITIVE_INFINITY;
-    for (const g of snapChoices) {
-      const s = Math.round(t / g) * g;
-      const d = Math.abs(t - s);
-      if (d < bestDiff) {
-        bestDiff = d;
-        bestTime = s;
-      }
-    }
-    return { ...e, timeMs: bestTime };
-  });
-
   const grouped = new Map<number, ScoreEvent[]>();
-  for (const e of snapped) {
-    const key = Math.round((e.timeMs as number) / 18);
+  for (const e of absEvents) {
+    // Collapse near-simultaneous chord notes but keep original absolute timing.
+    const key = Math.round((e.timeMs as number) / 22);
     const list = grouped.get(key) ?? [];
     list.push(e);
     grouped.set(key, list);
@@ -160,18 +142,14 @@ function simplifyEventsForRhythm(events: ScoreEvent[], bpm: number): ScoreEvent[
 
   const selected: ScoreEvent[] = [];
   for (const [k, list] of grouped) {
-    const t = k * 18;
     const byPitch = [...list].sort((a, b) => a.midi - b.midi);
     const melodyLike = byPitch[Math.min(byPitch.length - 1, Math.floor(byPitch.length * 0.68))];
-    const out = [melodyLike].map((e) => ({
-      ...e,
-      timeMs: t,
-    }));
+    const out = [melodyLike].map((e) => ({ ...e, timeMs: e.timeMs }));
     selected.push(...out);
   }
 
   selected.sort((a, b) => (a.timeMs as number) - (b.timeMs as number));
-  const minGap = Math.max(170, beatMs * 0.45);
+  const minGap = Math.max(190, beatMs * 0.5);
   const thinned: ScoreEvent[] = [];
   for (const e of selected) {
     const prev = thinned[thinned.length - 1];
@@ -218,41 +196,27 @@ function removeOverlapsWithLongNotes(notes: PlayNote[]): PlayNote[] {
 function fitChartToSongDuration(chart: PlayNote[], mediaDurationMs: number): PlayNote[] {
   if (!chart.length || !Number.isFinite(mediaDurationMs) || mediaDurationMs <= 0) return chart;
   const sorted = [...chart].sort((a, b) => a.hitTime - b.hitTime);
+  const desiredLast = Math.max(0, mediaDurationMs - 24);
+  const minLeadIn = 550;
   const first = sorted[0].hitTime;
-  const last = Math.max(...sorted.map((n) => Math.max(n.hitTime, n.holdEndTime)));
-  const desiredFirst = 1200;
-  const desiredLast = Math.max(desiredFirst + 500, mediaDurationMs - 80);
+  const shift = first < minLeadIn ? (minLeadIn - first) : 0;
 
-  if (last <= first + 50) {
-    const shift = desiredFirst - first;
-    return sorted.map((n) => ({
-      ...n,
-      hitTime: n.hitTime + shift,
-      holdEndTime: n.holdEndTime + shift,
-      durationMs: Math.max(0, n.holdEndTime + shift - (n.hitTime + shift)),
-    }));
-  }
+  const adjusted = sorted
+    .map((n) => {
+      const hit = n.hitTime + shift;
+      const end = n.holdEndTime + shift;
+      const clampedHit = Math.max(0, Math.min(desiredLast, hit));
+      const clampedEnd = Math.max(clampedHit, Math.min(desiredLast, end));
+      return {
+        ...n,
+        hitTime: clampedHit,
+        holdEndTime: clampedEnd,
+        durationMs: Math.max(0, clampedEnd - clampedHit),
+      };
+    })
+    .filter((n) => n.hitTime <= desiredLast + 4);
 
-  const scale = (desiredLast - desiredFirst) / (last - first);
-  const useScale = Number.isFinite(scale) && scale > 0.72 && scale < 1.35;
-  const adjusted = sorted.map((n) => {
-    const mapT = (t: number) => {
-      if (!useScale) return t + (desiredFirst - first);
-      return Math.round(desiredFirst + (t - first) * scale);
-    };
-    const hit = mapT(n.hitTime);
-    const end = mapT(n.holdEndTime);
-    const clampedHit = Math.max(0, Math.min(desiredLast, hit));
-    const clampedEnd = Math.max(clampedHit, Math.min(desiredLast, end));
-    return {
-      ...n,
-      hitTime: clampedHit,
-      holdEndTime: clampedEnd,
-      durationMs: Math.max(0, clampedEnd - clampedHit),
-    };
-  });
-
-  return adjusted.filter((n) => n.hitTime <= desiredLast + 20);
+  return adjusted;
 }
 
 function chooseLaneFromMidi(midi: number, minMidi: number, maxMidi: number): number {
@@ -722,11 +686,10 @@ export default function App(): JSX.Element {
 
   function rebuildChartForCurrentTime(): void {
     const rt = runtimeRef.current;
-    const now = rt.gameRunning ? getSongTimeMs() : 0;
+    const now = rt.gameRunning ? getTimelineMs() : 0;
     const baseChart = eventsToNotes(getCurrentEvents(), settingsRef.current.chartTempoBpm);
     rt.chart = fitChartToSongDuration(baseChart, rt.mediaDurationMs);
-    const lastHit = rt.chart.length ? Math.max(...rt.chart.map((n) => n.holdEndTime || n.hitTime)) : rt.mediaDurationMs;
-    rt.chartEndMs = Math.min(lastHit + 120, rt.mediaDurationMs + 120);
+    rt.chartEndMs = Math.max(0, rt.mediaDurationMs - 8);
     rt.possiblePoints = rt.chart.reduce((s, n) => s + (n.durationMs > 0 ? 2200 : 1000), 0);
     if (notesLayerRef.current) notesLayerRef.current.innerHTML = "";
     for (const note of rt.chart) {
@@ -931,19 +894,19 @@ export default function App(): JSX.Element {
     rt.countdown = [t1, t2, t3, t4];
   }
 
-  function getSongTimeMs(): number {
-    const rt = runtimeRef.current;
-    const raw = !rt.useSynthBgm && rt.audio && Number.isFinite(rt.audio.currentTime)
-      ? rt.audio.currentTime * 1000
-      : performance.now() - rt.startedAt;
-    return raw + settingsRef.current.timingOffsetMs;
-  }
-
-  function getRawSongTimeMs(): number {
+  function getTimelineMs(): number {
     const rt = runtimeRef.current;
     return !rt.useSynthBgm && rt.audio && Number.isFinite(rt.audio.currentTime)
       ? rt.audio.currentTime * 1000
       : performance.now() - rt.startedAt;
+  }
+
+  function getSongTimeMs(): number {
+    return getTimelineMs() + settingsRef.current.timingOffsetMs;
+  }
+
+  function getRawSongTimeMs(): number {
+    return getTimelineMs();
   }
 
   function updateNotes(nowMs: number): void {
@@ -1155,8 +1118,8 @@ export default function App(): JSX.Element {
       rt.rafId = requestAnimationFrame(loop);
       return;
     }
-    const rawMs = getRawSongTimeMs();
-    const now = getSongTimeMs();
+    const rawMs = getTimelineMs();
+    const now = rawMs + settingsRef.current.timingOffsetMs;
     const audioEnded = !!(
       rt.audio &&
       !rt.useSynthBgm &&
@@ -1170,12 +1133,12 @@ export default function App(): JSX.Element {
     updateHoldNotes(now);
     updateNotes(now);
     const chartSec = Math.max(1, rt.chartEndMs / 1000);
-    const sec = Math.min(chartSec, now / 1000);
+    const sec = Math.min(chartSec, rawMs / 1000);
     if (rawMs - rt.lastProgressUpdateMs >= 120) {
       setProgress(`Playing ${sec.toFixed(1)}s / ${chartSec.toFixed(1)}s`);
       rt.lastProgressUpdateMs = rawMs;
     }
-    if (now >= rt.chartEndMs) {
+    if (rawMs >= rt.chartEndMs) {
       stopGame();
       return;
     }
