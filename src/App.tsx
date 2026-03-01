@@ -994,27 +994,38 @@ export default function App(): JSX.Element {
     }, 240);
   }
 
+  function shiftPendingNotes(shiftMs: number): void {
+    const rt = runtimeRef.current;
+    if (!Number.isFinite(shiftMs) || Math.abs(shiftMs) < 0.5) return;
+    for (const n of rt.chart) {
+      if (n.judged) continue;
+      n.hitTime += shiftMs;
+      n.holdEndTime += shiftMs;
+    }
+    rt.chartEndMs += shiftMs;
+  }
+
   function registerLiveTimingDelta(deltaMs: number): void {
     const rt = runtimeRef.current;
     if (!liveAdjustEnabled || rt.calibrationActive) return;
-    if (!Number.isFinite(deltaMs) || Math.abs(deltaMs) > 180) return;
+    if (!Number.isFinite(deltaMs) || Math.abs(deltaMs) > 260) return;
     rt.liveAdjustSamples.push(deltaMs);
-    if (rt.liveAdjustSamples.length > 28) rt.liveAdjustSamples.shift();
+    if (rt.liveAdjustSamples.length > 36) rt.liveAdjustSamples.shift();
     const raw = getTimelineMs();
-    if (rt.liveAdjustSamples.length < 10) return;
-    if (raw - rt.liveAdjustLastApplyMs < 1400) return;
+    if (rt.liveAdjustSamples.length < 7) return;
+    if (raw - rt.liveAdjustLastApplyMs < 700) return;
 
     const sorted = [...rt.liveAdjustSamples].sort((a, b) => a - b);
-    const cut = Math.floor(sorted.length * 0.15);
+    const cut = Math.floor(sorted.length * 0.2);
     const core = sorted.slice(cut, sorted.length - cut);
     if (!core.length) return;
-    const avg = core.reduce((s, v) => s + v, 0) / core.length;
-    const step = Math.max(-16, Math.min(16, avg * 0.35));
-    if (Math.abs(step) < 2.2) return;
-    const next = Math.max(-300, Math.min(300, Math.round(settingsRef.current.timingOffsetMs - step)));
-    settingsRef.current.timingOffsetMs = next;
-    setTimingOffsetMs(next);
+    const avg = core.reduce((s, v) => s + v, 0) / core.length; // + => player late
+    const correction = Math.max(-42, Math.min(42, avg * 0.85));
+    if (Math.abs(correction) < 1.2) return;
+    // Strong mode: move pending chart itself toward player's rhythm.
+    shiftPendingNotes(correction);
     rt.liveAdjustLastApplyMs = raw;
+    rt.liveAdjustSamples = [];
   }
 
   function applyJudge(note: PlayNote, j: Judge): void {
@@ -1769,7 +1780,7 @@ export default function App(): JSX.Element {
             <button onClick={() => setLiveAdjustEnabled((v) => !v)}>
               {liveAdjustEnabled ? "ON" : "OFF"}
             </button>
-            <span>{liveAdjustEnabled ? "平均ズレを自動補正" : "補正しない"}</span>
+            <span>{liveAdjustEnabled ? "平均ズレを強めに補正（譜面を追従）" : "補正しない"}</span>
           </div>
           <div className="speed-row">
             <input type="file" accept=".musicxml,.xml,.mxl,.mid,.midi" onChange={async (e) => {
