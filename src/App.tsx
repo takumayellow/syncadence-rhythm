@@ -11,6 +11,7 @@ const NOTE_BASE_WIDTH = 118;
 const AUTO_CALIBRATION_MS = 10000;
 const LIVE_ADJUST_WINDOW_MS = 30000;
 const NOTE_LANE_FILL_RATIO = 0.96;
+const APP_BASE_URL = new URL(".", document.baseURI).pathname || "/";
 
 const JUDGE_WINDOWS = {
   perfect: 45,
@@ -86,6 +87,15 @@ function laneCenterAtDepth(lane: number, depth: number, width: number): number {
   const xNear = center + t * nearSpread;
   const xFar = center + t * farSpread;
   return xFar + (xNear - xFar) * depth;
+}
+
+function resolvePublicUrl(path: string): string {
+  if (!path) return path;
+  if (/^https?:\/\//i.test(path)) return path;
+  if (path.startsWith("blob:") || path.startsWith("data:")) return path;
+  const base = APP_BASE_URL.endsWith("/") ? APP_BASE_URL : `${APP_BASE_URL}/`;
+  const clean = path.startsWith("/") ? path.slice(1) : path;
+  return `${base}${clean}`;
 }
 
 function laneBoundsAtDepth(lane: number, depth: number, width: number): { left: number; right: number } {
@@ -501,13 +511,13 @@ function assignLanesStrict(events: ScoreEvent[]): number[] {
 
 async function fetchMusicXml(meta: ScoreMeta): Promise<ScoreEvent[]> {
   if (meta.mxlPath) {
-    const res = await fetch(meta.mxlPath);
+    const res = await fetch(resolvePublicUrl(meta.mxlPath));
     if (!res.ok) throw new Error("mxl not found");
     const xml = await extractMusicXmlFromMxl(await res.arrayBuffer());
     return parseMusicXml(xml);
   }
   if (meta.xmlPath) {
-    const res = await fetch(meta.xmlPath);
+    const res = await fetch(resolvePublicUrl(meta.xmlPath));
     if (!res.ok) throw new Error("xml not found");
     return parseMusicXml(await res.text());
   }
@@ -516,7 +526,7 @@ async function fetchMusicXml(meta: ScoreMeta): Promise<ScoreEvent[]> {
 
 async function fetchMidiEvents(meta: ScoreMeta): Promise<ScoreEvent[]> {
   if (!meta.midiPath) return [];
-  const res = await fetch(meta.midiPath);
+  const res = await fetch(resolvePublicUrl(meta.midiPath));
   if (!res.ok) throw new Error("midi not found");
   const midiNotes = parseMidi(await res.arrayBuffer());
   return midiNotes.map((n) => ({
@@ -668,7 +678,7 @@ export default function App(): JSX.Element {
   }, [noteSpeed, timingOffsetMs, chartTempoBpm, judgeLineOffsetPx]);
 
   useEffect(() => {
-    fetch("/scores/index.json")
+    fetch(resolvePublicUrl("/scores/index.json"))
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("score index not found"))))
       .then((list: ScoreMeta[]) => {
         if (Array.isArray(list) && list.length) {
@@ -846,7 +856,7 @@ export default function App(): JSX.Element {
   }
 
   function getEffectiveAudioUrl(): string {
-    return customAudioUrl || selectedScore.audioUrl;
+    return customAudioUrl || resolvePublicUrl(selectedScore.audioUrl);
   }
 
   function midiToFreq(midi: number): number {
@@ -1021,6 +1031,7 @@ export default function App(): JSX.Element {
     } else {
       rt.audio = new Audio(effectiveAudio);
       rt.audio.preload = "auto";
+      rt.audio.setAttribute("playsinline", "true");
       rt.audio.crossOrigin = "anonymous";
       rt.audio.onloadedmetadata = () => {
         if (!rt.audio) return;
@@ -1257,14 +1268,19 @@ export default function App(): JSX.Element {
     setProgress("Calibration 10s: tap Space / D F J K");
     setJudge("TAP");
     if (rt.audio) {
+      rt.useSynthBgm = false;
       rt.audio.currentTime = 0;
       rt.audio.play().then(() => {
         rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
       }).catch(() => {
+        rt.useSynthBgm = true;
         rt.startedAt = performance.now();
+        startSynthBgm();
       });
     } else {
+      rt.useSynthBgm = true;
       rt.startedAt = performance.now();
+      startSynthBgm();
     }
 
     rt.calibrationTimer = window.setTimeout(() => {
@@ -1341,7 +1357,7 @@ export default function App(): JSX.Element {
 
   function getTimelineMs(): number {
     const rt = runtimeRef.current;
-    return !rt.useSynthBgm && rt.audio && Number.isFinite(rt.audio.currentTime)
+    return !rt.useSynthBgm && rt.audio && !rt.audio.paused && Number.isFinite(rt.audio.currentTime)
       ? rt.audio.currentTime * 1000
       : performance.now() - rt.startedAt;
   }
