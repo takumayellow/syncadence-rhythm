@@ -1,5 +1,15 @@
 [
   {
+    "id": "shishiriennu-op78-etude",
+    "title": "shishiriennu-zuo-pin78-to-duan-diao",
+    "artist": "Score + MP3",
+    "audioUrl": "/scores/xml/shishiriennu-zuo-pin78-to-duan-diao.mp3",
+    "mxlPath": "/scores/xml/shishiriennu-zuo-pin78-to-duan-diao.mxl",
+    "offsetMs": 0,
+    "bpm": 100,
+    "lengthSec": 240
+  },
+  {
     "id": "lian-ai-cai-pan-40mp",
     "title": "lian-ai-cai-pan-40mp",
     "artist": "Score + MIDI",

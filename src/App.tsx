@@ -116,6 +116,22 @@ function estimateBpmFromTimedEvents(events: ScoreEvent[]): number {
   return Math.max(50, Math.min(180, bpm));
 }
 
+function estimateBpmForBeatScore(events: ScoreEvent[], mediaDurationMs: number): number | null {
+  if (!events.length || !Number.isFinite(mediaDurationMs) || mediaDurationMs <= 0) return null;
+  const beatBased = events.filter((e) => !Number.isFinite(e.timeMs));
+  if (!beatBased.length) return null;
+  const lastBeat = Math.max(
+    ...beatBased.map((e) => e.beatPos + Math.max(0.25, e.durationBeats || 0))
+  );
+  if (!Number.isFinite(lastBeat) || lastBeat <= 0.1) return null;
+  const leadInMs = 550;
+  const tailMs = 24;
+  const playableMs = Math.max(1200, mediaDurationMs - leadInMs - tailMs);
+  const bpm = (lastBeat * 60000) / playableMs;
+  if (!Number.isFinite(bpm)) return null;
+  return Math.max(40, Math.min(220, bpm));
+}
+
 function isMidiUrl(url: string): boolean {
   return /\.mid(i)?$/i.test(url);
 }
@@ -769,7 +785,11 @@ export default function App(): JSX.Element {
   function rebuildChartForCurrentTime(): void {
     const rt = runtimeRef.current;
     const now = rt.gameRunning ? getTimelineMs() : 0;
-    const bpm = settingsRef.current.chartTempoBpm;
+    let bpm = settingsRef.current.chartTempoBpm;
+    if (rt.chartSourceMode === "score" && rt.importedEvents.length && rt.midiPlaybackEvents.length === 0) {
+      const autoBpm = estimateBpmForBeatScore(rt.importedEvents, rt.mediaDurationMs);
+      if (autoBpm) bpm = autoBpm;
+    }
     let chart = fitChartToSongDuration(eventsToNotes(getCurrentEvents(), bpm), rt.mediaDurationMs);
     if (isSparseChart(chart, rt.mediaDurationMs)) {
       const support = buildSupportNotes(rt.mediaDurationMs, bpm);
