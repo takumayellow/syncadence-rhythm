@@ -78,6 +78,7 @@ type Runtime = {
   liveAdjustLastUiMs: number;
   liveAdjustFrozen: boolean;
   audioPrimed: boolean;
+  lastAudioError: string;
 };
 
 function laneCenterAtDepth(lane: number, depth: number, width: number): number {
@@ -617,6 +618,7 @@ export default function App(): JSX.Element {
     liveAdjustLastUiMs: 0,
     liveAdjustFrozen: false,
     audioPrimed: false,
+    lastAudioError: "",
   });
 
   const [scores, setScores] = useState<ScoreMeta[]>([defaultScore]);
@@ -660,9 +662,21 @@ export default function App(): JSX.Element {
   const isMobileUi = uiMode === "mobile";
 
   useEffect(() => {
-    const ui = new URLSearchParams(window.location.search).get("ui");
-    if (ui === "mobile" || ui === "desktop") setUiMode(ui);
-    else setUiMode("auto");
+    const queryUi = new URLSearchParams(window.location.search).get("ui");
+    const path = window.location.pathname.toLowerCase();
+    if (queryUi === "mobile" || queryUi === "desktop") {
+      setUiMode(queryUi);
+      return;
+    }
+    if (path.endsWith("/mobile") || path.endsWith("/mobile/") || path.endsWith("/mobile.html")) {
+      setUiMode("mobile");
+      return;
+    }
+    if (path.endsWith("/desktop") || path.endsWith("/desktop/") || path.endsWith("/desktop.html")) {
+      setUiMode("desktop");
+      return;
+    }
+    setUiMode("auto");
   }, []);
 
   useEffect(() => {
@@ -1039,6 +1053,7 @@ export default function App(): JSX.Element {
     rt.liveAdjustLastUiMs = 0;
     rt.liveAdjustFrozen = false;
     rt.audioPrimed = false;
+    rt.lastAudioError = "";
     if (rt.audio) {
       rt.audio.pause();
       rt.audio.currentTime = 0;
@@ -1058,6 +1073,10 @@ export default function App(): JSX.Element {
           rt.mediaDurationMs = d * 1000;
           if (!rt.gameRunning) rebuildChartForCurrentTime();
         }
+      };
+      rt.audio.onerror = () => {
+        rt.lastAudioError = "audio load error";
+        setProgress("Audio load failed");
       };
     }
     rt.score = 0;
@@ -1245,10 +1264,12 @@ export default function App(): JSX.Element {
           rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
           rt.awaitingAudioStart = false;
         }).catch(() => {
+          rt.lastAudioError = "audio play blocked";
           rt.useSynthBgm = true;
           rt.startedAt = performance.now();
           rt.awaitingAudioStart = false;
           startSynthBgm();
+          setProgress("Audio blocked, fallback synth");
         });
       }
     } else {
@@ -1281,9 +1302,11 @@ export default function App(): JSX.Element {
         rt.useSynthBgm = false;
         rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
       }).catch(() => {
+        rt.lastAudioError = "audio play blocked";
         rt.useSynthBgm = true;
         rt.startedAt = performance.now();
         startSynthBgm();
+        setProgress("Audio blocked, fallback synth");
       });
     } else {
       rt.useSynthBgm = true;
@@ -1368,6 +1391,8 @@ export default function App(): JSX.Element {
           rt.audio.muted = false;
           rt.audioPrimed = false;
         }
+        rt.lastAudioError = "prime failed";
+        setProgress("Audio prime failed");
       });
     } else {
       rt.useSynthBgm = true;
@@ -1964,6 +1989,10 @@ export default function App(): JSX.Element {
           <div className="speed-row">
             <span>Status</span>
             <span>{progress}</span>
+          </div>
+          <div className="speed-row">
+            <span>Audio Error</span>
+            <span>{runtimeRef.current.lastAudioError || "-"}</span>
           </div>
           <label>Note Speed</label>
           <div className="speed-row">
