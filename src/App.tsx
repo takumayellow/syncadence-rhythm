@@ -10,6 +10,7 @@ const BASE_APPROACH_MS = 2100;
 const NOTE_BASE_WIDTH = 118;
 const AUTO_CALIBRATION_MS = 10000;
 const LIVE_ADJUST_WINDOW_MS = 30000;
+const NOTE_LANE_FILL_RATIO = 0.96;
 
 const JUDGE_WINDOWS = {
   perfect: 45,
@@ -1417,8 +1418,8 @@ export default function App(): JSX.Element {
       const laneTail = laneBoundsAtDepth(note.lane, depthTail, pf.clientWidth);
       const laneHeadW = Math.max(22, laneHead.right - laneHead.left);
       const laneTailW = Math.max(16, laneTail.right - laneTail.left);
-      const wHead = Math.min(NOTE_BASE_WIDTH * (0.52 + depthHead * 1.1), laneHeadW * 0.84);
-      const wTail = Math.min(NOTE_BASE_WIDTH * (0.52 + depthTail * 1.1), laneTailW * 0.84);
+      const wHead = Math.min(NOTE_BASE_WIDTH * (0.6 + depthHead * 1.2), laneHeadW * NOTE_LANE_FILL_RATIO);
+      const wTail = Math.min(NOTE_BASE_WIDTH * (0.6 + depthTail * 1.2), laneTailW * NOTE_LANE_FILL_RATIO);
       const hHead = 26 * (0.58 + depthHead * 1.2);
       const hTail = 26 * (0.58 + depthTail * 1.2);
       const yHead = Math.min(yHeadRaw, judgeLineY - hHead / 2);
