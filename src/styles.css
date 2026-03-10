@@ -18,6 +18,7 @@
 body {
   margin: 0;
   min-height: 100vh;
+  min-height: 100dvh;
   font-family: "Zen Kaku Gothic New", sans-serif;
   color: var(--text);
   background:
@@ -27,6 +28,9 @@ body {
   display: grid;
   place-items: center;
   overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-user-select: none;
+  user-select: none;
 }
 
 .bg-glow {
@@ -210,6 +214,7 @@ body {
   -webkit-appearance: none;
   -webkit-tap-highlight-color: transparent;
   outline: none;
+  touch-action: none;
 }
 
 .lane:active,
@@ -353,6 +358,11 @@ body {
   opacity: 0.9;
 }
 
+.result-restart {
+  margin-top: 14px;
+  width: 100%;
+}
+
 .controls {
   display: flex;
   gap: 10px;
@@ -366,6 +376,10 @@ button {
   padding: 8px 16px;
   color: var(--text);
   background: rgba(0,0,0,0.24);
+  touch-action: manipulation;
+  min-height: 44px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
 }
 
 button.primary {
@@ -384,9 +398,13 @@ button.primary {
   inset: 0;
   display: grid;
   place-items: center;
+  align-items: start;
+  padding: 12px 0;
   background: rgba(3, 8, 20, 0.65);
   backdrop-filter: blur(3px);
   z-index: 20;
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .settings-panel.hidden {
@@ -395,10 +413,13 @@ button.primary {
 
 .settings-card {
   width: min(420px, 92vw);
+  max-height: calc(100dvh - 24px);
   padding: 18px;
   border-radius: 14px;
   border: 1px solid var(--lane-border);
   background: linear-gradient(180deg, rgba(14, 24, 48, 0.95), rgba(10, 17, 35, 0.95));
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 .settings-card h2 {
@@ -447,7 +468,7 @@ button.primary {
   }
 
   .playfield {
-    height: 68vh;
+    height: 68svh;
   }
 
   .controls {
@@ -459,6 +480,119 @@ button.primary {
   }
 }
 
+@media (max-width: 480px) {
+  .app {
+    gap: 6px;
+    margin-top: 0;
+  }
+
+  .topbar {
+    gap: 8px;
+  }
+
+  .title-wrap h1 {
+    font-size: 1.2rem;
+  }
+
+  .title-wrap p {
+    font-size: 0.78rem;
+  }
+
+  .keyboard-hint {
+    display: none;
+  }
+
+  .status {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+
+  .status div {
+    padding: 6px 8px;
+    font-size: 0.9rem;
+  }
+
+  .label {
+    font-size: 0.7rem;
+  }
+
+  .playfield {
+    height: 62svh;
+    --judge-line-bottom: 80px;
+  }
+
+  .judge-line {
+    bottom: var(--judge-line-bottom, 80px);
+  }
+
+  .hit-feedback {
+    font-size: 1.4rem;
+    bottom: calc(var(--judge-line-bottom, 80px) + 14px);
+  }
+
+  .controls {
+    gap: 8px;
+  }
+
+  button {
+    padding: 10px 14px;
+    font-size: 0.88rem;
+  }
+
+  select {
+    width: 140px;
+    font-size: 0.82rem;
+  }
+}
+
+/* ランドスケープ（横向き）: ヘッダーを小さくしてプレイ領域を最大化 */
+@media (max-height: 500px) and (orientation: landscape) {
+  .app {
+    gap: 4px;
+    margin-top: 0;
+  }
+
+  .topbar {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .title-wrap h1 {
+    font-size: 1rem;
+  }
+
+  .title-wrap p {
+    display: none;
+  }
+
+  .status {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+    width: auto;
+  }
+
+  .status div {
+    padding: 4px 6px;
+    font-size: 0.8rem;
+  }
+
+  .playfield {
+    height: 58svh;
+    --judge-line-bottom: 70px;
+  }
+
+  .controls {
+    gap: 6px;
+  }
+
+  button {
+    padding: 6px 12px;
+    min-height: 36px;
+    font-size: 0.85rem;
+  }
+}
+
 select {
   width: 170px;
   font: 600 0.88rem "Zen Kaku Gothic New", sans-serif;
@@ -467,4 +601,7 @@ select {
   border: 1px solid var(--lane-border);
   border-radius: 8px;
   padding: 4px 6px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 36px;
 }

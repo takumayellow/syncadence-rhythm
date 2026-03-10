@@ -1791,7 +1791,7 @@ export default function App(): JSX.Element {
         <header className="topbar">
           <div className="title-wrap">
             <h1>SEKAI-Like Rhythm Demo</h1>
-            <p>キー: D / F / J / K，またはレーンをタップ</p>
+            <p className="keyboard-hint">キー: D / F / J / K，またはレーンをタップ</p>
           </div>
           <div className="status">
             <div><span className="label">Score</span><span>{score}</span></div>
@@ -1863,6 +1863,7 @@ export default function App(): JSX.Element {
                 <p className="result-rank">{result.rank}</p>
                 <p className="result-score">SCORE {result.score}</p>
                 <p className="result-meta">ACCURACY {result.acc}</p>
+                <button className="primary result-restart" onClick={() => { resetGame(); startGame(); }}>RESTART</button>
               </div>
             </div>
           </div>
