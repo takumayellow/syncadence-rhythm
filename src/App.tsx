@@ -1407,26 +1407,37 @@ export default function App(): JSX.Element {
 
       const headTime = note.holding ? nowMs : note.hitTime;
       const tailTime = note.durationMs > 0 ? note.holdEndTime : note.hitTime;
-      const headLinear = clamp01(1 - (headTime - nowMs) / approachMs);
-      const tailLinear = clamp01(1 - (tailTime - nowMs) / approachMs);
+      // Allow linear progress to exceed 1 so notes pass through the judge line
+      // instead of freezing at it. Lower-bound at 0 prevents negative values
+      // when nowMs is well before the note's approach window begins.
+      const headLinear = Math.max(0, 1 - (headTime - nowMs) / approachMs);
+      const tailLinear = Math.max(0, 1 - (tailTime - nowMs) / approachMs);
       const depthHead = Math.pow(headLinear, 1.15);
       const depthTail = Math.pow(tailLinear, 1.15);
+      // Vertical position uses the full (uncapped) depth so the note continues
+      // moving below the judge line after the hit time.
       const yHeadRaw = 55 + (judgeLineY - 55) * depthHead;
       const yTailRaw = 55 + (judgeLineY - 55) * depthTail;
+      // Lane bounds, widths, heights and skew are capped at depth=1 (the point
+      // where a note reaches the judge line) so the note shape doesn't expand
+      // when it continues past the line after the hit time.
+      const renderDepthHead = Math.min(1.0, depthHead);
+      const renderDepthTail = Math.min(1.0, depthTail);
 
-      const laneHead = laneBoundsAtDepth(note.lane, depthHead, pf.clientWidth);
-      const laneTail = laneBoundsAtDepth(note.lane, depthTail, pf.clientWidth);
+      const laneHead = laneBoundsAtDepth(note.lane, renderDepthHead, pf.clientWidth);
+      const laneTail = laneBoundsAtDepth(note.lane, renderDepthTail, pf.clientWidth);
       const laneHeadW = Math.max(22, laneHead.right - laneHead.left);
       const laneTailW = Math.max(16, laneTail.right - laneTail.left);
-      const wHead = Math.min(NOTE_BASE_WIDTH * (0.6 + depthHead * 1.2), laneHeadW * NOTE_LANE_FILL_RATIO);
-      const wTail = Math.min(NOTE_BASE_WIDTH * (0.6 + depthTail * 1.2), laneTailW * NOTE_LANE_FILL_RATIO);
-      const hHead = 26 * (0.58 + depthHead * 1.2);
-      const hTail = 26 * (0.58 + depthTail * 1.2);
-      const yHead = Math.min(yHeadRaw, judgeLineY - hHead / 2);
-      const yTail = Math.min(yTailRaw, judgeLineY - hTail / 2);
+      const wHead = Math.min(NOTE_BASE_WIDTH * (0.6 + renderDepthHead * 1.2), laneHeadW * NOTE_LANE_FILL_RATIO);
+      const wTail = Math.min(NOTE_BASE_WIDTH * (0.6 + renderDepthTail * 1.2), laneTailW * NOTE_LANE_FILL_RATIO);
+      const hHead = 26 * (0.58 + renderDepthHead * 1.2);
+      const hTail = 26 * (0.58 + renderDepthTail * 1.2);
+      // No longer clamp yHead/yTail – the note travels through and below the line
+      const yHead = yHeadRaw;
+      const yTail = yTailRaw;
       const xHead = laneHead.left + (laneHeadW - wHead) / 2;
       const xTail = laneTail.left + (laneTailW - wTail) / 2;
-      const skew = (note.lane - 1.5) * -1.8 * (1 - depthHead);
+      const skew = (note.lane - 1.5) * -1.8 * (1 - renderDepthHead);
 
       if (!note.element) createNoteElement(note);
       if (!note.element) continue;
