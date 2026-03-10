@@ -1380,11 +1380,24 @@ export default function App(): JSX.Element {
         rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
         rt.awaitingAudioStart = false;
       } else {
+        // モバイルでは play() promise が resolve/reject しないケースがあるため
+        // 3 秒のタイムアウトで強制的に synth フォールバックへ移行する．
+        const audioStartTimeout = window.setTimeout(() => {
+          if (!rt.awaitingAudioStart) return;
+          rt.lastAudioError = "audio start timeout";
+          rt.useSynthBgm = true;
+          rt.startedAt = performance.now();
+          rt.awaitingAudioStart = false;
+          startSynthBgm();
+          setProgress("Audio timeout, fallback synth");
+        }, 3000);
         rt.audio.play().then(() => {
+          clearTimeout(audioStartTimeout);
           rt.useSynthBgm = false;
           rt.startedAt = performance.now() - (rt.audio?.currentTime ?? 0) * 1000;
           rt.awaitingAudioStart = false;
         }).catch(() => {
+          clearTimeout(audioStartTimeout);
           rt.lastAudioError = "audio play blocked";
           rt.useSynthBgm = true;
           rt.startedAt = performance.now();
@@ -1542,7 +1555,8 @@ export default function App(): JSX.Element {
     }, 1400);
     const t4 = window.setTimeout(() => {
       rt.countdown = [];
-      const shouldCalibrate = autoSyncEnabled && rt.chart.length > 30 && (recalibrateOnNextStart || !hasTuneForSong(selectedScore));
+      // モバイルUIではキーボードがないためキャリブレーションをスキップする．
+      const shouldCalibrate = !isMobileUi && autoSyncEnabled && rt.chart.length > 30 && (recalibrateOnNextStart || !hasTuneForSong(selectedScore));
       if (!skipCalibration && shouldCalibrate) {
         setCountdownText("");
         startCalibrationThenPlay();
