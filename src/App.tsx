@@ -2152,6 +2152,15 @@ export default function App(): JSX.Element {
         <footer className="controls">
           {/* 再初期化して即開始する． */}
           <button className="primary" onClick={() => { resetGame(); startGame(); }}>START / RESTART</button>
+          {isMobileUi && (
+            <select
+              className="mobile-song-select"
+              value={selectedScoreId}
+              onChange={(e) => setSelectedScoreId(e.target.value)}
+            >
+              {scores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+            </select>
+          )}
           <button onClick={() => setSettingsOpen(true)}>SETTINGS</button>
           {!isMobileUi && <div className="progress">{progress}</div>}
         </footer>

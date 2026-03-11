@@ -385,6 +385,14 @@ body[data-ui-mode="mobile"] .controls {
   gap: 6px;
 }
 
+body[data-ui-mode="mobile"] .mobile-song-select {
+  grid-column: 1 / -1;
+  width: 100%;
+  font-size: 0.9rem;
+  min-height: 44px;
+  padding: 6px 10px;
+}
+
 body[data-ui-mode="mobile"] .controls .progress {
   grid-column: 1 / -1;
   margin-left: 0;
