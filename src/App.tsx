@@ -686,7 +686,7 @@ export default function App(): JSX.Element {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
   const [customAudioName, setCustomAudioName] = useState<string>("");
-  const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
+  const [autoSyncEnabled, setAutoSyncEnabled] = useState(false);
   const [liveAdjustEnabled, setLiveAdjustEnabled] = useState(false);
   const [recalibrateOnNextStart, setRecalibrateOnNextStart] = useState(false);
   const [noteSpeed, setNoteSpeed] = useState(15);
@@ -2190,15 +2190,13 @@ export default function App(): JSX.Element {
 
   return (
     <>
-      {/* 縦画面時の回転促しメッセージ */}
-      {isMobileUi && (
-        <div className="portrait-message">
-          <div className="portrait-message-icon">📱</div>
-          <div className="portrait-message-text">
-            画面を横向きにしてください
-          </div>
+      {/* 縦画面時の回転促しメッセージ（CSS で表示切替） */}
+      <div className="portrait-message">
+        <div className="portrait-message-icon">📱</div>
+        <div className="portrait-message-text">
+          画面を横向きにしてください
         </div>
-      )}
+      </div>
       {/* 背景の発光エフェクト層． */}
       <div className="bg-glow" />
       <main className="app">
