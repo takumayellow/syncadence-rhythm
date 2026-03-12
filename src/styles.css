@@ -381,8 +381,21 @@ body[data-ui-mode="mobile"] .app {
   line-height: 1.6;
 }
 
-/* 縦画面＋タッチ端末: メッセージ表示，ゲーム非表示 */
-@media (orientation: portrait) and (pointer: coarse) {
+/* 縦画面: メッセージ表示，ゲーム非表示 */
+@media (orientation: portrait) {
+  body[data-ui-mode="mobile"] .portrait-message,
+  body[data-ui-mode="auto"] .portrait-message {
+    display: flex !important;
+  }
+  body[data-ui-mode="mobile"] .app,
+  body[data-ui-mode="auto"] .app,
+  body[data-ui-mode="mobile"] .bg-glow,
+  body[data-ui-mode="auto"] .bg-glow {
+    display: none !important;
+  }
+}
+/* タッチ端末でもdata-ui-modeが付く前に対応 */
+@media (orientation: portrait) and (hover: none) {
   .portrait-message {
     display: flex !important;
   }
