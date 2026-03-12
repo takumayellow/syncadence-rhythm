@@ -18,7 +18,7 @@
     "mxlPath": "/scores/songs/lian-ai-cai-pan-40mp/score.mxl",
     "offsetMs": 0,
     "bpm": 134,
-    "lengthSec": 168
+    "lengthSec": 90
   },
   {
     "id": "g-senjo-no-aria",
@@ -29,7 +29,7 @@
     "strictMode": true,
     "offsetMs": -80,
     "bpm": 60,
-    "lengthSec": 192
+    "lengthSec": 165
   },
   {
     "id": "kanon-pachelbel",

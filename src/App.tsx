@@ -81,6 +81,10 @@ type Runtime = {
   liveAdjustFrozen: boolean;
   audioPrimed: boolean;
   lastAudioError: string;
+  // audio.currentTime のジッター補正用：最後に同期した audio 時刻と performance.now()．
+  audioSyncMs: number;
+  audioSyncPerf: number;
+  audioLastRaw: number;
 };
 
 // レーン全体の spread 係数（画面幅に対する比率）．
@@ -275,30 +279,43 @@ function removeOverlapsWithLongNotes(notes: PlayNote[]): PlayNote[] {
   return kept;
 }
 
-// 譜面全体を曲長に合わせて前後クランプし，先頭リードインも確保する．
+// 譜面全体を曲長に合わせてスケーリング＋クランプし，先頭リードインも確保する．
+// スコアが音源より長い場合は比例縮小して全ノーツを収める．
 function fitChartToSongDuration(chart: PlayNote[], mediaDurationMs: number): PlayNote[] {
   if (!chart.length || !Number.isFinite(mediaDurationMs) || mediaDurationMs <= 0) return chart;
   const sorted = [...chart].sort((a, b) => a.hitTime - b.hitTime);
-  const desiredLast = Math.max(0, mediaDurationMs - 24);
   const minLeadIn = 550;
-  const first = sorted[0].hitTime;
-  const shift = first < minLeadIn ? (minLeadIn - first) : 0;
+  const desiredLast = Math.max(0, mediaDurationMs - 24);
 
-  const adjusted = sorted
-    .map((n) => {
-      const hit = n.hitTime + shift;
-      const end = n.holdEndTime + shift;
-      // 先頭・末尾を曲の再生可能区間に収める．
-      const clampedHit = Math.max(0, Math.min(desiredLast, hit));
-      const clampedEnd = Math.max(clampedHit, Math.min(desiredLast, end));
-      return {
-        ...n,
-        hitTime: clampedHit,
-        holdEndTime: clampedEnd,
-        durationMs: Math.max(0, clampedEnd - clampedHit),
-      };
-    })
-    .filter((n) => n.hitTime <= desiredLast + 4);
+  // 譜面の実時間レンジを計算する．
+  const chartFirst = sorted[0].hitTime;
+  const chartLast = Math.max(...sorted.map((n) => Math.max(n.hitTime, n.holdEndTime)));
+  const chartSpan = chartLast - chartFirst;
+
+  // 譜面が曲より大幅に長い場合（1.15倍超），比例スケーリングで全体を収める．
+  const playableMs = desiredLast - minLeadIn;
+  const needsScale = chartSpan > 0 && chartSpan > playableMs * 1.15;
+  const scale = needsScale ? playableMs / chartSpan : 1;
+
+  const adjusted = sorted.map((n) => {
+    // スケーリング: 先頭ノーツを基準に比例配置し，リードインを加算．
+    const rawHit = needsScale
+      ? minLeadIn + (n.hitTime - chartFirst) * scale
+      : n.hitTime + (chartFirst < minLeadIn ? minLeadIn - chartFirst : 0);
+    const rawEnd = needsScale
+      ? minLeadIn + (n.holdEndTime - chartFirst) * scale
+      : n.holdEndTime + (chartFirst < minLeadIn ? minLeadIn - chartFirst : 0);
+    const rawDur = needsScale ? n.durationMs * scale : n.durationMs;
+
+    const clampedHit = Math.max(0, Math.min(desiredLast, Math.round(rawHit)));
+    const clampedEnd = Math.max(clampedHit, Math.min(desiredLast, Math.round(rawEnd)));
+    return {
+      ...n,
+      hitTime: clampedHit,
+      holdEndTime: clampedEnd,
+      durationMs: Math.max(0, clampedEnd - clampedHit),
+    };
+  }).filter((n) => n.hitTime <= desiredLast + 4);
 
   return adjusted;
 }
@@ -666,6 +683,9 @@ export default function App(): JSX.Element {
     liveAdjustFrozen: false,
     audioPrimed: false,
     lastAudioError: "",
+    audioSyncMs: 0,
+    audioSyncPerf: 0,
+    audioLastRaw: -1,
   });
 
   // 曲リストと選択曲．
@@ -1291,6 +1311,9 @@ export default function App(): JSX.Element {
     rt.liveAdjustFrozen = false;
     rt.audioPrimed = false;
     rt.lastAudioError = "";
+    rt.audioSyncMs = 0;
+    rt.audioSyncPerf = 0;
+    rt.audioLastRaw = -1;
     if (rt.audio) {
       rt.audio.pause();
       rt.audio.currentTime = 0;
@@ -1702,9 +1725,20 @@ export default function App(): JSX.Element {
   // 現在の再生タイムライン（audio か performance.now 基準）を返す．
   function getTimelineMs(): number {
     const rt = runtimeRef.current;
-    return !rt.useSynthBgm && rt.audio && !rt.audio.paused && Number.isFinite(rt.audio.currentTime)
-      ? rt.audio.currentTime * 1000
-      : performance.now() - rt.startedAt;
+    if (!rt.useSynthBgm && rt.audio && !rt.audio.paused && Number.isFinite(rt.audio.currentTime)) {
+      const rawAudioMs = rt.audio.currentTime * 1000;
+      const now = performance.now();
+      // audio.currentTime が更新されたら同期ポイントを記録する．
+      // ブラウザの audio.currentTime は低頻度更新でジッターが大きいため，
+      // 変化点間は performance.now() で等速補間してスクロールを滑らかにする．
+      if (Math.abs(rawAudioMs - rt.audioLastRaw) > 0.5) {
+        rt.audioSyncMs = rawAudioMs;
+        rt.audioSyncPerf = now;
+        rt.audioLastRaw = rawAudioMs;
+      }
+      return rt.audioSyncMs + (now - rt.audioSyncPerf);
+    }
+    return performance.now() - rt.startedAt;
   }
 
   // 判定用時刻（ユーザー調整オフセット適用後）．
