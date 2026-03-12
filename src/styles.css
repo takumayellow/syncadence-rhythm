@@ -324,17 +324,21 @@ body[data-ui-mode="mobile"] {
   overflow: hidden;
   padding: 0;
   margin: 0;
+  display: flex;
+  place-items: stretch;
 }
 
 body[data-ui-mode="mobile"] .app {
-  padding: 4px 4px 0;
+  padding: 0;
+  margin: 0;
   margin-top: 0;
-  gap: 4px;
+  gap: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   width: 100vw;
   height: 100dvh;
+  max-width: 100vw;
 }
 
 /* 端末が既に横向きの場合: そのままビューポートいっぱい */
@@ -430,16 +434,18 @@ body[data-ui-mode="mobile"] select {
 }
 
 body[data-ui-mode="mobile"] .playfield-wrap {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
   width: 100%;
+  display: block;
 }
 
 body[data-ui-mode="mobile"] .playfield {
-  width: 100%;
-  height: 100%;
+  width: 100% !important;
+  height: 100% !important;
+  max-height: none !important;
   border-width: 1px;
-  border-radius: 10px 10px 0 0;
+  border-radius: 0;
   --judge-line-bottom: 50px;
 }
 
