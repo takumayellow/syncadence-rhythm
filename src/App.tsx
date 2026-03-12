@@ -1958,7 +1958,6 @@ export default function App(): JSX.Element {
 
     if (best) {
       const j = judgeDelta(best.abs) ?? "miss";
-      if (j !== "miss") registerLiveTimingDelta(best.delta);
       if (best.longHead) judgeLongHead(best.note, j);
       else applyJudge(best.note, j);
       return;
@@ -2048,7 +2047,6 @@ export default function App(): JSX.Element {
     }
     const rawMs = getTimelineMs();
     const now = rawMs + settingsRef.current.timingOffsetMs;
-    applySmoothLiveAdjust(rawMs);
     // HTMLAudio の終了検知．末尾誤差を見込んで少し手前でも終了扱いにする．
     const audioEnded = !!(
       rt.audio &&
@@ -2456,13 +2454,6 @@ export default function App(): JSX.Element {
               {recalibrateOnNextStart ? "ON" : "OFF"}
             </button>
             <span>{recalibrateOnNextStart ? "次回STARTで10秒測定を実施" : "保存済み補正をそのまま使用"}</span>
-          </div>
-          <label>調整モード（プレイ中）</label>
-          <div className="speed-row">
-            <button onClick={() => setLiveAdjustEnabled((v) => !v)}>
-              {liveAdjustEnabled ? "ON" : "OFF"}
-            </button>
-            <span>{liveAdjustEnabled ? "平均ズレを超強力補正＋曲別デフォルト保存" : "補正しない"}</span>
           </div>
           <div className="speed-row">
             <input type="file" accept=".musicxml,.xml,.mxl,.mid,.midi" onChange={async (e) => {
