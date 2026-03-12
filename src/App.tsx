@@ -712,7 +712,7 @@ export default function App(): JSX.Element {
   const [mobileEntryDismissed, setMobileEntryDismissed] = useState(false);
   const isMobileUi = uiMode === "mobile";
 
-  // URL から UI モードを判定する．
+  // URL またはデバイス特性から UI モードを判定する．
   useEffect(() => {
     const queryUi = new URLSearchParams(window.location.search).get("ui");
     const path = window.location.pathname.toLowerCase();
@@ -728,7 +728,10 @@ export default function App(): JSX.Element {
       setUiMode("desktop");
       return;
     }
-    setUiMode("auto");
+    // auto: タッチ対応＋画面が小さい場合はモバイル扱い
+    const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+    const isSmallScreen = Math.min(window.innerWidth, window.innerHeight) < 768;
+    setUiMode(isTouchDevice && isSmallScreen ? "mobile" : "desktop");
   }, []);
 
   // body 属性に UI モードを反映して CSS 分岐に使う．
