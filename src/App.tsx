@@ -84,8 +84,8 @@ type Runtime = {
 };
 
 // レーン全体の spread 係数（画面幅に対する比率）．
-const NEAR_SPREAD = 0.80;
-const FAR_SPREAD = 0.10;
+const NEAR_SPREAD = 0.82;
+const FAR_SPREAD = 0.06;
 
 // public 配下の相対URLを，現在の base path に安全に解決する．
 function resolvePublicUrl(path: string): string {
@@ -789,7 +789,7 @@ export default function App(): JSX.Element {
     const judgeY = h - judgeLineOffsetPx;
 
     // depth=0 (消失点) から depth=1.15 (判定ライン越え) まで直線サンプル
-    const dNear = 1.15; // 判定ライン下まで少し延長
+    const dNear = 1.4; // 判定ラインから下端まで十分に延長
     const yNear = depthToY(dNear, judgeY);
     const yFar = depthToY(0, judgeY);
 
@@ -1747,8 +1747,8 @@ export default function App(): JSX.Element {
       // 0..1 の進行度をパース深度へ写像して位置・サイズを計算．
       const headLinear = Math.max(0, 1 - (headTime - nowMs) / approachMs);
       const tailLinear = Math.max(0, 1 - (tailTime - nowMs) / approachMs);
-      const depthHead = Math.pow(headLinear, 1.65);
-      const depthTail = Math.pow(tailLinear, 1.65);
+      const depthHead = Math.pow(headLinear, 1.8);
+      const depthTail = Math.pow(tailLinear, 1.8);
       const vanishY = 30;
       const yHead = vanishY + (judgeLineY - vanishY) * depthHead;
       const yTail = vanishY + (judgeLineY - vanishY) * depthTail;
