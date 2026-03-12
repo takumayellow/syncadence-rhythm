@@ -2191,7 +2191,7 @@ export default function App(): JSX.Element {
 
   return (
     <>
-      {/* モバイル全画面エントリーオーバーレイ（body直下にPortalで配置） */}
+      {/* モバイル全画面エントリーオーバーレイ（html要素にPortalで配置し，bodyのtransformの影響を回避） */}
       {isMobileUi && !mobileEntryDismissed && createPortal(
         <div className="mobile-entry-overlay" onClick={handleMobileEntry}>
           <div className="mobile-entry-content">
@@ -2199,7 +2199,7 @@ export default function App(): JSX.Element {
             <div className="mobile-entry-text">タップしてスタート</div>
           </div>
         </div>,
-        document.body
+        document.documentElement
       )}
       {/* 背景の発光エフェクト層． */}
       <div className="bg-glow" />
