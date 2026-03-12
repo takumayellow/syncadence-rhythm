@@ -688,7 +688,7 @@ export default function App(): JSX.Element {
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
   const [customAudioName, setCustomAudioName] = useState<string>("");
   const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
-  const [liveAdjustEnabled, setLiveAdjustEnabled] = useState(true);
+  const [liveAdjustEnabled, setLiveAdjustEnabled] = useState(false);
   const [recalibrateOnNextStart, setRecalibrateOnNextStart] = useState(false);
   const [noteSpeed, setNoteSpeed] = useState(15);
   const [timingOffsetMs, setTimingOffsetMs] = useState(0);
