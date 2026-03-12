@@ -294,20 +294,44 @@ body {
 
 body[data-ui-mode="mobile"] {
   overflow: hidden;
-  align-items: start;
   padding: 0;
   margin: 0;
+  /* ポートレート時は CSS transform で横向き表示を強制する */
 }
 
 body[data-ui-mode="mobile"] .app {
-  width: 100vw;
-  height: 100dvh;
   padding: 4px 4px 0;
   margin-top: 0;
   gap: 4px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+/* 端末が既に横向きの場合: そのままビューポートいっぱい */
+@media (orientation: landscape) {
+  body[data-ui-mode="mobile"] .app {
+    width: 100vw;
+    height: 100dvh;
+  }
+}
+
+/* 端末が縦向きの場合: body ごと90度回転して強制横向き */
+@media (orientation: portrait) {
+  body[data-ui-mode="mobile"] {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100dvh;
+    height: 100dvw;
+    transform: translateY(100dvh) rotate(90deg);
+    transform-origin: 0 0;
+  }
+
+  body[data-ui-mode="mobile"] .app {
+    width: 100%;
+    height: 100%;
+  }
 }
 
 body[data-ui-mode="mobile"] .topbar {
