@@ -10,6 +10,18 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      window.addEventListener("error", function(e) {
+        document.body.style.color = "red";
+        document.body.style.padding = "20px";
+        document.body.innerHTML += "<pre>ERROR: " + e.message + "\n" + (e.filename || "") + ":" + (e.lineno || "") + "</pre>";
+      });
+      window.addEventListener("unhandledrejection", function(e) {
+        document.body.style.color = "red";
+        document.body.style.padding = "20px";
+        document.body.innerHTML += "<pre>PROMISE: " + (e.reason ? e.reason.message || e.reason : "unknown") + "</pre>";
+      });
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
