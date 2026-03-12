@@ -123,7 +123,7 @@ body {
   position: absolute;
   inset: 0;
   z-index: 1;
-  clip-path: polygon(45% 3%, 55% 3%, 90% 100%, 10% 100%);
+  /* clip-path は JS から inline style で設定 */
   background:
     linear-gradient(180deg, rgba(161, 224, 255, 0.12), rgba(32, 39, 94, 0.28) 35%, rgba(10, 14, 30, 0.44));
 }
@@ -152,12 +152,12 @@ body {
 
 .lane-sep {
   stroke: rgba(255, 255, 255, 0.72);
-  stroke-width: 0.42;
+  stroke-width: 1.2;
 }
 
 .lane-sep.outer {
   stroke: rgba(255, 255, 255, 0.85);
-  stroke-width: 0.56;
+  stroke-width: 1.6;
 }
 
 .lane-fill.active {
@@ -201,7 +201,7 @@ body {
   inset: 0;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  clip-path: polygon(45% 3%, 55% 3%, 90% 100%, 10% 100%);
+  /* clip-path は JS から inline style で設定 */
   z-index: 3;
 }
 

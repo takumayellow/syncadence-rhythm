@@ -635,6 +635,7 @@ export default function App(): JSX.Element {
   const playfieldRef = useRef<HTMLDivElement>(null);
   const notesLayerRef = useRef<HTMLDivElement>(null);
   const laneVisualRefs = useRef<SVGPolygonElement[]>([]);
+  const trackSvgRef = useRef<SVGSVGElement>(null);
 
   // ループから最新設定値を読むためのミラー．
   const settingsRef = useRef({
@@ -711,6 +712,7 @@ export default function App(): JSX.Element {
   const [chartTempoBpm, setChartTempoBpmState] = useState(66);
   const [judgeLineOffsetPx, setJudgeLineOffsetPxState] = useState(110);
   const [tapTempoState, setTapTempoState] = useState("idle");
+  const [pfSize, setPfSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [tapTempoMode, setTapTempoMode] = useState(false);
   const [tapTimes, setTapTimes] = useState<number[]>([]);
   const [xmlImportState, setXmlImportState] = useState("no score");
@@ -774,20 +776,110 @@ export default function App(): JSX.Element {
     localStorage.setItem("pjsk_chart_tempo_bpm", String(chartTempoBpm));
     localStorage.setItem("pjsk_judge_line_px", String(Math.round(judgeLineOffsetPx)));
     if (playfieldRef.current) {
-      const pf = playfieldRef.current;
-      pf.style.setProperty("--judge-line-bottom", `${judgeLineOffsetPx}px`);
-      // 判定ラインはdepth≈1.0（手前端）でのレーン境界に合わせる．
-      const pfW = pf.clientWidth;
-      if (pfW > 0) {
-        const outerLeft = laneBoundsAtDepth(0, 1.0, pfW);
-        const outerRight = laneBoundsAtDepth(3, 1.0, pfW);
-        const leftPct = (outerLeft.left / pfW) * 100;
-        const rightPct = ((pfW - outerRight.right) / pfW) * 100;
-        pf.style.setProperty("--judge-line-left", `${leftPct}%`);
-        pf.style.setProperty("--judge-line-right", `${rightPct}%`);
-      }
+      playfieldRef.current.style.setProperty("--judge-line-bottom", `${judgeLineOffsetPx}px`);
     }
   }, [noteSpeed, timingOffsetMs, chartTempoBpm, judgeLineOffsetPx]);
+
+  // playfield サイズを監視して track 描画に使う．
+  useEffect(() => {
+    const pf = playfieldRef.current;
+    if (!pf) return;
+    const ro = new ResizeObserver(() => {
+      setPfSize({ w: pf.clientWidth, h: pf.clientHeight });
+    });
+    ro.observe(pf);
+    setPfSize({ w: pf.clientWidth, h: pf.clientHeight });
+    return () => ro.disconnect();
+  }, []);
+
+  // ノーツと同じ座標系でレール形状・判定ライン・clip-path を計算する．
+  const VANISH_Y = 30;
+  const trackGeometry = useMemo(() => {
+    const { w, h } = pfSize;
+    if (w <= 0 || h <= 0) return null;
+    const judgeY = h - judgeLineOffsetPx;
+    // depth=0 → far (vanish), depth=1 → near (judge line)
+    // y = VANISH_Y + (judgeY - VANISH_Y) * depth  →  depth = (y - VANISH_Y) / (judgeY - VANISH_Y)
+    // レーン区切り線: 5本 (外左, 1-2境界, 2-3境界, 3-4境界, 外右)
+    const seps: { x1: number; y1: number; x2: number; y2: number }[] = [];
+    // far 端と near 端の境界X座標
+    const farBounds: number[] = [];
+    const nearBounds: number[] = [];
+    for (let lane = 0; lane <= LANE_COUNT; lane++) {
+      // laneBoundsAtDepth は lane index (0-3) を受け取るので、境界は隣接レーンから取る
+      let nearX: number;
+      let farX: number;
+      if (lane < LANE_COUNT) {
+        nearX = laneBoundsAtDepth(lane, 1.0, w).left;
+        farX = laneBoundsAtDepth(lane, 0.0, w).left;
+      } else {
+        nearX = laneBoundsAtDepth(lane - 1, 1.0, w).right;
+        farX = laneBoundsAtDepth(lane - 1, 0.0, w).right;
+      }
+      nearBounds.push(nearX);
+      farBounds.push(farX);
+      seps.push({ x1: nearX, y1: judgeY, x2: farX, y2: VANISH_Y });
+    }
+    // 各レーンのポリゴン
+    const polys = [0, 1, 2, 3].map((i) => {
+      const nl = nearBounds[i];
+      const nr = nearBounds[i + 1];
+      const fl = farBounds[i];
+      const fr = farBounds[i + 1];
+      return `${nl},${judgeY} ${nr},${judgeY} ${fr},${VANISH_Y} ${fl},${VANISH_Y}`;
+    });
+    // clip-path (% 単位)
+    const clipLeft = (farBounds[0] / w) * 100;
+    const clipRight = (farBounds[LANE_COUNT] / w) * 100;
+    const nearLeft = (nearBounds[0] / w) * 100;
+    const nearRight = (nearBounds[LANE_COUNT] / w) * 100;
+    const farYPct = (VANISH_Y / h) * 100;
+    const nearYPct = (judgeY / h) * 100;
+    const clip = `polygon(${clipLeft}% ${farYPct}%, ${clipRight}% ${farYPct}%, ${nearRight}% ${nearYPct}%, ${nearLeft}% ${nearYPct}%)`;
+    // 判定ラインの left / right
+    const jLeftPct = (nearBounds[0] / w) * 100;
+    const jRightPct = ((w - nearBounds[LANE_COUNT]) / w) * 100;
+    return { seps, polys, clip, jLeftPct, jRightPct, w, h };
+  }, [pfSize, judgeLineOffsetPx]);
+
+  // track geometry が変わったら SVG と CSS 変数を更新する．
+  useEffect(() => {
+    if (!trackGeometry) return;
+    const { seps, polys, clip, jLeftPct, jRightPct } = trackGeometry;
+    // SVG ポリゴン更新
+    laneVisualRefs.current.forEach((el, i) => {
+      if (el && polys[i]) el.setAttribute("points", polys[i]);
+    });
+    // SVG ライン更新（セパレータ）
+    const svg = trackSvgRef.current;
+    if (svg) {
+      const lines = svg.querySelectorAll("line");
+      // 既存の line を削除して再生成
+      lines.forEach((l) => l.remove());
+      seps.forEach((s, i) => {
+        const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        line.setAttribute("x1", String(s.x1));
+        line.setAttribute("y1", String(s.y1));
+        line.setAttribute("x2", String(s.x2));
+        line.setAttribute("y2", String(s.y2));
+        line.classList.add("lane-sep");
+        if (i === 0 || i === seps.length - 1) line.classList.add("outer");
+        svg.appendChild(line);
+      });
+    }
+    // 判定ラインの左右位置
+    const pf = playfieldRef.current;
+    if (pf) {
+      pf.style.setProperty("--judge-line-left", `${jLeftPct}%`);
+      pf.style.setProperty("--judge-line-right", `${jRightPct}%`);
+    }
+    // track-bg の clip-path は inline style で渡す (trackClipStyle)
+  }, [trackGeometry]);
+
+  const trackClipStyle = useMemo(() => {
+    if (!trackGeometry) return {};
+    return { clipPath: trackGeometry.clip };
+  }, [trackGeometry]);
 
   // 曲リスト index を読み込み，失敗時は default を使う．
   useEffect(() => {
@@ -2118,9 +2210,9 @@ export default function App(): JSX.Element {
             <div className="cue">{runtimeRef.current.gameRunning ? "" : "READY"}</div>
             <div className={`countdown-overlay ${countdownText ? "" : "hidden"}`}>{countdownText}</div>
             <div className="judge-line" />
-            {/* 判定ライン手前の背景装飾（パース付き）． */}
-            <div className="track-bg" aria-hidden="true">
-              <svg className="track-perspective" viewBox="0 0 100 100" preserveAspectRatio="none">
+            {/* 判定ライン手前の背景装飾（パース付き）．ノーツと同じ座標系で描画． */}
+            <div className="track-bg" aria-hidden="true" style={trackClipStyle}>
+              <svg className="track-perspective" ref={trackSvgRef}>
                 {[0, 1, 2, 3].map((i) => (
                   <polygon
                     key={i}
@@ -2128,25 +2220,14 @@ export default function App(): JSX.Element {
                       if (el) laneVisualRefs.current[i] = el;
                     }}
                     className={`lane-fill lane-fill-${i + 1}`}
-                    points={
-                      i === 0 ? "10,100 30,100 47.5,3 45,3" :
-                      i === 1 ? "30,100 50,100 50,3 47.5,3" :
-                      i === 2 ? "50,100 70,100 52.5,3 50,3" :
-                      "70,100 90,100 55,3 52.5,3"
-                    }
                   />
                 ))}
-                <line className="lane-sep outer" x1="10" y1="100" x2="45" y2="3" />
-                <line className="lane-sep" x1="30" y1="100" x2="47.5" y2="3" />
-                <line className="lane-sep" x1="50" y1="100" x2="50" y2="3" />
-                <line className="lane-sep" x1="70" y1="100" x2="52.5" y2="3" />
-                <line className="lane-sep outer" x1="90" y1="100" x2="55" y2="3" />
               </svg>
               <div className="track-grid" />
               <div className="track-gloss" />
             </div>
             {/* 透明ボタンで4レーンのポインタ入力を受け取る． */}
-            <div className="lanes">
+            <div className="lanes" style={trackClipStyle}>
               {[0, 1, 2, 3].map((i) => (
                 <button
                   key={i}
