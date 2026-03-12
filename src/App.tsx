@@ -741,14 +741,29 @@ export default function App(): JSX.Element {
 
   // モバイルエントリータップで全画面＋横画面ロックを発動する．
   const handleMobileEntry = async () => {
+    // 全画面を先にリクエスト（orientation lock は全画面が前提の端末が多い）
     try {
       await document.documentElement.requestFullscreen?.();
     } catch { /* 全画面が使えない端末もある */ }
+    // 横画面にロックして回転を固定する
     try {
       await (screen.orientation as any).lock?.("landscape");
     } catch { /* orientation lock 非対応の場合は CSS 回転でカバー */ }
     setMobileEntryDismissed(true);
   };
+
+  // 全画面が解除された場合に再リクエストする（戻るボタン等で解除された場合の対策）
+  useEffect(() => {
+    if (!isMobileUi || !mobileEntryDismissed) return;
+    const onFullscreenChange = async () => {
+      if (!document.fullscreenElement) {
+        // 全画面が解除されたら orientation lock も外れるので CSS 回転に任せる
+        // ユーザーが意図的に解除した可能性もあるため再リクエストはしない
+      }
+    };
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+    return () => document.removeEventListener("fullscreenchange", onFullscreenChange);
+  }, [isMobileUi, mobileEntryDismissed]);
 
   // 永続化された設定値を初期読み込みする．
   useEffect(() => {
