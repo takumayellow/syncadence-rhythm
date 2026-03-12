@@ -6,7 +6,6 @@ on:
       - main
       - feature/chart-sync-refine
       - feature/mobile-layout
-      - feature/mobile-portrait-fix
   workflow_dispatch:
 
 permissions:
