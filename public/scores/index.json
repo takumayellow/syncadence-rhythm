@@ -458,5 +458,104 @@
     "bpm": 130,
     "lengthSec": 258,
     "category": "J-POP"
+  },
+  {
+    "id": "septette-dead-princess",
+    "title": "亡き王女の為のセプテット",
+    "artist": "ZUN (東方紅魔郷)",
+    "audioUrl": "/scores/songs/septette-dead-princess/audio.mp3",
+    "mxlPath": "/scores/songs/septette-dead-princess/score.mxl",
+    "offsetMs": 0,
+    "bpm": 144,
+    "lengthSec": 137,
+    "category": "東方"
+  },
+  {
+    "id": "rolling-girl",
+    "title": "ローリンガール",
+    "artist": "wowaka feat. 初音ミク",
+    "audioUrl": "/scores/songs/rolling-girl/audio.mp3",
+    "mxlPath": "/scores/songs/rolling-girl/score.mxl",
+    "offsetMs": 0,
+    "bpm": 208,
+    "lengthSec": 199,
+    "category": "ボカロ"
+  },
+  {
+    "id": "tell-your-world",
+    "title": "Tell Your World",
+    "artist": "kz(livetune) feat. 初音ミク",
+    "audioUrl": "/scores/songs/tell-your-world/audio.mp3",
+    "mxlPath": "/scores/songs/tell-your-world/score.mxl",
+    "offsetMs": 0,
+    "bpm": 150,
+    "lengthSec": 248,
+    "category": "ボカロ"
+  },
+  {
+    "id": "unravel-tokyo-ghoul",
+    "title": "unravel",
+    "artist": "TK from 凛として時雨 (東京喰種 OP)",
+    "audioUrl": "/scores/songs/unravel-tokyo-ghoul/audio.mp3",
+    "mxlPath": "/scores/songs/unravel-tokyo-ghoul/score.mxl",
+    "offsetMs": 0,
+    "bpm": 144,
+    "lengthSec": 237,
+    "category": "アニメ"
+  },
+  {
+    "id": "blue-bird-naruto",
+    "title": "ブルーバード",
+    "artist": "いきものがかり (NARUTO疾風伝 OP3)",
+    "audioUrl": "/scores/songs/blue-bird-naruto/audio.mp3",
+    "mxlPath": "/scores/songs/blue-bird-naruto/score.mxl",
+    "offsetMs": 0,
+    "bpm": 150,
+    "lengthSec": 188,
+    "category": "アニメ"
+  },
+  {
+    "id": "crossing-field-sao",
+    "title": "crossing field",
+    "artist": "LiSA (ソードアート・オンライン OP)",
+    "audioUrl": "/scores/songs/crossing-field-sao/audio.mp3",
+    "mxlPath": "/scores/songs/crossing-field-sao/score.mxl",
+    "offsetMs": 0,
+    "bpm": 185,
+    "lengthSec": 277,
+    "category": "アニメ"
+  },
+  {
+    "id": "take-on-me-aha",
+    "title": "Take On Me",
+    "artist": "a-ha",
+    "audioUrl": "/scores/songs/take-on-me-aha/audio.mp3",
+    "mxlPath": "/scores/songs/take-on-me-aha/score.mxl",
+    "offsetMs": 0,
+    "bpm": 169,
+    "lengthSec": 232,
+    "category": "洋楽"
+  },
+  {
+    "id": "we-will-rock-you-queen",
+    "title": "We Will Rock You",
+    "artist": "Queen",
+    "audioUrl": "/scores/songs/we-will-rock-you-queen/audio.mp3",
+    "mxlPath": "/scores/songs/we-will-rock-you-queen/score.mxl",
+    "offsetMs": 0,
+    "bpm": 82,
+    "lengthSec": 135,
+    "category": "洋楽"
+  },
+  {
+    "id": "yesterday-beatles",
+    "title": "Yesterday",
+    "artist": "The Beatles",
+    "audioUrl": "/scores/songs/yesterday-beatles/audio.mp3",
+    "mxlPath": "/scores/songs/yesterday-beatles/score.mxl",
+    "offsetMs": 0,
+    "bpm": 100,
+    "lengthSec": 108,
+    "category": "洋楽"
   }
 ]
