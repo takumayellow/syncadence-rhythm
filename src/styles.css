@@ -34,7 +34,7 @@ body {
 }
 
 .bg-glow {
-  position: fixed;
+  position: absolute;
   inset: -25%;
   background: conic-gradient(from 120deg, transparent, rgba(255,255,255,0.07), transparent 30%);
   animation: spin 10s linear infinite;
@@ -360,7 +360,7 @@ body[data-ui-mode="mobile"] .app {
     width: 100dvh;
     height: 100vw;
     height: 100dvw;
-    transform: rotate(90deg) translateY(-100%);
+    transform: rotate(90deg) translateX(-100%);
     transform-origin: top left;
   }
 }
