@@ -1792,10 +1792,10 @@ export default function App(): JSX.Element {
       // 各辺の長さに対する r の割合で補間位置を計算
       // 右辺: (tr,topY) → (br,botY)
       const rSideLen = Math.hypot(br - tr, h);
-      const rFrac = Math.min(r / rSideLen, 0.4);
+      const rFrac = rSideLen > 0 ? Math.min(r / rSideLen, 0.4) : 0;
       // 左辺: (bl,botY) → (tl,topY)
       const lSideLen = Math.hypot(tl - bl, h);
-      const lFrac = Math.min(r / lSideLen, 0.4);
+      const lFrac = lSideLen > 0 ? Math.min(r / lSideLen, 0.4) : 0;
       // 右辺上端から r 分進んだ点
       const r1x = tr + (br - tr) * rFrac;
       const r1y = topY + h * rFrac;
