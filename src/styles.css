@@ -909,6 +909,38 @@ button.primary {
   }
 }
 
+/* カテゴリタブ（曲リスト内） */
+.category-tabs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.category-tab {
+  font: 600 0.72rem "Zen Kaku Gothic New", sans-serif;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 6px;
+  padding: 3px 8px;
+  min-height: 26px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.category-tab:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.category-tab.active {
+  background: linear-gradient(90deg, rgba(0, 212, 255, 0.25), rgba(0, 255, 163, 0.2));
+  border-color: rgba(0, 212, 255, 0.6);
+  color: #e0fcff;
+}
+
 select {
   width: 170px;
   font: 600 0.88rem "Zen Kaku Gothic New", sans-serif;

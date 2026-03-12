@@ -1,5 +1,20 @@
 export type Judge = "perfect" | "great" | "good" | "miss";
 
+export type SongCategory =
+  | "クラシック"
+  | "ボカロ"
+  | "アニメ"
+  | "東方"
+  | "J-POP";
+
+export const SONG_CATEGORIES: readonly SongCategory[] = [
+  "クラシック",
+  "ボカロ",
+  "アニメ",
+  "東方",
+  "J-POP",
+] as const;
+
 export type ScoreMeta = {
   id: string;
   title: string;
@@ -12,6 +27,7 @@ export type ScoreMeta = {
   offsetMs: number;
   bpm: number;
   lengthSec: number;
+  category?: SongCategory;
 };
 
 export type ScoreEvent = {

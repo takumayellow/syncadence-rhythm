@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { parseMusicXml } from "./musicxml";
 import { parseMidi } from "./midi";
 import { extractMusicXmlFromMxl } from "./mxl";
-import type { Judge, PlayNote, ScoreEvent, ScoreMeta } from "./types";
+import type { Judge, PlayNote, ScoreEvent, ScoreMeta, SongCategory } from "./types";
+import { SONG_CATEGORIES } from "./types";
 
 const LANE_COUNT = 4;
 const HIT_KEYS = ["KeyD", "KeyF", "KeyJ", "KeyK"];
@@ -694,6 +695,19 @@ export default function App(): JSX.Element {
   const selectedScore = useMemo(
     () => scores.find((s) => s.id === selectedScoreId) ?? defaultScore,
     [scores, selectedScoreId]
+  );
+
+  // カテゴリフィルタ．null は「すべて」を表す．
+  const [selectedCategory, setSelectedCategory] = useState<SongCategory | null>(null);
+  const filteredScores = useMemo(
+    () => selectedCategory === null ? scores : scores.filter((s) => s.category === selectedCategory),
+    [scores, selectedCategory]
+  );
+
+  // 現在の曲リストに存在するカテゴリのみ表示する．
+  const availableCategories = useMemo(
+    () => SONG_CATEGORIES.filter((cat) => scores.some((s) => s.category === cat)),
+    [scores]
   );
 
   // UI 表示用 state（変更時に再描画される）．
@@ -2261,8 +2275,21 @@ export default function App(): JSX.Element {
               </div>
               <div className="song-select-desktop">
                 <span className="label">曲リスト</span>
+                <div className="category-tabs">
+                  <button
+                    className={`category-tab${selectedCategory === null ? " active" : ""}`}
+                    onClick={() => setSelectedCategory(null)}
+                  >すべて</button>
+                  {availableCategories.map((cat) => (
+                    <button
+                      key={cat}
+                      className={`category-tab${selectedCategory === cat ? " active" : ""}`}
+                      onClick={() => setSelectedCategory(cat)}
+                    >{cat}</button>
+                  ))}
+                </div>
                 <select value={selectedScoreId} onChange={(e) => setSelectedScoreId(e.target.value)}>
-                  {scores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+                  {filteredScores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
                 </select>
               </div>
             </div>
@@ -2278,7 +2305,7 @@ export default function App(): JSX.Element {
               value={selectedScoreId}
               onChange={(e) => setSelectedScoreId(e.target.value)}
             >
-              {scores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+              {filteredScores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
             </select>
             <button className="mobile-toolbar-btn" onClick={() => setSettingsOpen(true)}>⚙</button>
           </div>
