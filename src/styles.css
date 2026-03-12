@@ -250,6 +250,15 @@ body {
   filter: drop-shadow(0 3px 8px rgba(0,0,0,0.55)) drop-shadow(0 0 12px rgba(255, 123, 168, 0.4));
 }
 
+.note-poly.long {
+  fill: #ffe175;
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,0.55)) drop-shadow(0 0 12px rgba(255, 225, 117, 0.5));
+}
+.note-poly.long.alt {
+  fill: #ffe175;
+  filter: drop-shadow(0 3px 8px rgba(0,0,0,0.55)) drop-shadow(0 0 12px rgba(255, 225, 117, 0.5));
+}
+
 .cue {
   position: absolute;
   inset: 0 auto auto 50%;

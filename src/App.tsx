@@ -1218,6 +1218,7 @@ export default function App(): JSX.Element {
     if (!svg) return;
     const el = document.createElementNS("http://www.w3.org/2000/svg", "path");
     el.classList.add("note-poly");
+    if (note.durationMs > 0) el.classList.add("long");
     if (note.lane % 2) el.classList.add("alt");
     svg.appendChild(el);
     note.element = el as unknown as HTMLDivElement;
