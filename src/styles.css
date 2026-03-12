@@ -333,6 +333,8 @@ body[data-ui-mode="mobile"] .app {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  width: 100vw;
+  height: 100dvh;
 }
 
 /* 端末が既に横向きの場合: そのままビューポートいっぱい */

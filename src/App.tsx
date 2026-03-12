@@ -293,9 +293,11 @@ function fitChartToSongDuration(chart: PlayNote[], mediaDurationMs: number): Pla
   const chartLast = Math.max(...sorted.map((n) => Math.max(n.hitTime, n.holdEndTime)));
   const chartSpan = chartLast - chartFirst;
 
-  // 譜面が曲より大幅に長い場合（1.15倍超），比例スケーリングで全体を収める．
+  // 譜面と曲の長さが 5% 以上ずれていれば比例スケーリングで全体を合わせる．
+  // これにより MusicXML のテンポと実音源の長さが一致する．
   const playableMs = desiredLast - minLeadIn;
-  const needsScale = chartSpan > 0 && chartSpan > playableMs * 1.15;
+  const ratio = chartSpan > 0 ? chartSpan / playableMs : 1;
+  const needsScale = chartSpan > 0 && (ratio > 1.05 || ratio < 0.95);
   const scale = needsScale ? playableMs / chartSpan : 1;
 
   const adjusted = sorted.map((n) => {
@@ -306,7 +308,6 @@ function fitChartToSongDuration(chart: PlayNote[], mediaDurationMs: number): Pla
     const rawEnd = needsScale
       ? minLeadIn + (n.holdEndTime - chartFirst) * scale
       : n.holdEndTime + (chartFirst < minLeadIn ? minLeadIn - chartFirst : 0);
-    const rawDur = needsScale ? n.durationMs * scale : n.durationMs;
 
     const clampedHit = Math.max(0, Math.min(desiredLast, Math.round(rawHit)));
     const clampedEnd = Math.max(clampedHit, Math.min(desiredLast, Math.round(rawEnd)));
@@ -1053,9 +1054,9 @@ export default function App(): JSX.Element {
     const lanePlan = strictMode ? assignLanesStrict(source) : assignLanesForFlow(source, bpm);
     const base = source.map((e, idx) => {
       const lane = lanePlan[idx] ?? 1;
-      // 曲ごとの既定オフセットを先に載せて，判定時刻を作る．
+      // 譜面内の絶対時刻を使う．曲オフセットは fitChartToSongDuration 後に適用．
       const hitTime = Math.round(
-        (selectedScore.offsetMs || 0) + (Number.isFinite(e.timeMs) ? (e.timeMs as number) : e.beatPos * beatMs)
+        Number.isFinite(e.timeMs) ? (e.timeMs as number) : e.beatPos * beatMs
       );
       const rawDurationMs = Math.max(0, Number.isFinite(e.durationMs) ? (e.durationMs as number) : e.durationBeats * beatMs);
       return { lane, hitTime, rawDurationMs };
@@ -1290,6 +1291,15 @@ export default function App(): JSX.Element {
     }
     chart = rebalanceTailLongRatio(chart, rt.mediaDurationMs, 0.45);
     chart = rebalanceLongRuns(chart, 2);
+    // 曲ごとの既定オフセットをスケーリング後に適用する（テンポ補正で歪まないように）．
+    const songOffset = selectedScore.offsetMs || 0;
+    if (songOffset !== 0) {
+      chart = chart.map((n) => ({
+        ...n,
+        hitTime: n.hitTime + songOffset,
+        holdEndTime: n.holdEndTime + songOffset,
+      }));
+    }
     rt.chart = removeOverlapsWithLongNotes(chart);
     rt.sweepIndex = 0;
     rt.chartEndMs = Math.max(0, rt.mediaDurationMs - 8);
