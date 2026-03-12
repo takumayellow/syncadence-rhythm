@@ -1644,8 +1644,8 @@ export default function App(): JSX.Element {
       const headTime = note.holding ? nowMs : note.hitTime;
       const tailTime = note.durationMs > 0 ? note.holdEndTime : note.hitTime;
       // 0..1 の進行度をパース深度へ写像して位置・サイズを計算．
-      const headLinear = clamp01(1 - (headTime - nowMs) / approachMs);
-      const tailLinear = clamp01(1 - (tailTime - nowMs) / approachMs);
+      const headLinear = Math.max(0, 1 - (headTime - nowMs) / approachMs);
+      const tailLinear = Math.max(0, 1 - (tailTime - nowMs) / approachMs);
       const depthHead = Math.pow(headLinear, 1.15);
       const depthTail = Math.pow(tailLinear, 1.15);
       const yHeadRaw = 55 + (judgeLineY - 55) * depthHead;
@@ -1660,8 +1660,8 @@ export default function App(): JSX.Element {
       const wTail = Math.min(NOTE_BASE_WIDTH * (0.6 + depthTail * 1.2), laneTailW * NOTE_LANE_FILL_RATIO);
       const hHead = 26 * (0.58 + depthHead * 1.2);
       const hTail = 26 * (0.58 + depthTail * 1.2);
-      const yHead = Math.min(yHeadRaw, judgeLineY - hHead / 2);
-      const yTail = Math.min(yTailRaw, judgeLineY - hTail / 2);
+      const yHead = yHeadRaw;
+      const yTail = yTailRaw;
       const xHead = laneHead.left + (laneHeadW - wHead) / 2;
       const xTail = laneTail.left + (laneTailW - wTail) / 2;
       const skew = (note.lane - 1.5) * -1.8 * (1 - depthHead);
@@ -2084,6 +2084,21 @@ export default function App(): JSX.Element {
           </header>
         )}
 
+        {/* モバイル用コンパクトツールバー（プレイ画面の上に1行で配置）． */}
+        {isMobileUi && (
+          <div className="mobile-toolbar">
+            <button className="primary mobile-toolbar-btn" onClick={() => { resetGame(); startGame(); }}>▶ START</button>
+            <select
+              className="mobile-toolbar-select"
+              value={selectedScoreId}
+              onChange={(e) => setSelectedScoreId(e.target.value)}
+            >
+              {scores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
+            </select>
+            <button className="mobile-toolbar-btn" onClick={() => setSettingsOpen(true)}>⚙</button>
+          </div>
+        )}
+
         <section className="playfield-wrap">
           <div className="playfield" id="playfield" ref={playfieldRef}>
             {!isMobileUi && (
@@ -2149,21 +2164,14 @@ export default function App(): JSX.Element {
           </div>
         </section>
 
-        <footer className="controls">
-          {/* 再初期化して即開始する． */}
-          <button className="primary" onClick={() => { resetGame(); startGame(); }}>START / RESTART</button>
-          {isMobileUi && (
-            <select
-              className="mobile-song-select"
-              value={selectedScoreId}
-              onChange={(e) => setSelectedScoreId(e.target.value)}
-            >
-              {scores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
-            </select>
-          )}
-          <button onClick={() => setSettingsOpen(true)}>SETTINGS</button>
-          {!isMobileUi && <div className="progress">{progress}</div>}
-        </footer>
+        {/* デスクトップ用フッター（モバイルではツールバーに統合済み）． */}
+        {!isMobileUi && (
+          <footer className="controls">
+            <button className="primary" onClick={() => { resetGame(); startGame(); }}>START / RESTART</button>
+            <button onClick={() => setSettingsOpen(true)}>SETTINGS</button>
+            <div className="progress">{progress}</div>
+          </footer>
+        )}
       </main>
 
       <div className={`settings-panel ${settingsOpen ? "" : "hidden"}`} onClick={(e) => {
