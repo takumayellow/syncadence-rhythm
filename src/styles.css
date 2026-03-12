@@ -123,7 +123,7 @@ body {
   position: absolute;
   inset: 0;
   z-index: 1;
-  clip-path: polygon(43% 3%, 57% 3%, 90% 100%, 10% 100%);
+  clip-path: polygon(45% 3%, 55% 3%, 90% 100%, 10% 100%);
   background:
     linear-gradient(180deg, rgba(161, 224, 255, 0.12), rgba(32, 39, 94, 0.28) 35%, rgba(10, 14, 30, 0.44));
 }
@@ -201,7 +201,7 @@ body {
   inset: 0;
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  clip-path: polygon(43% 3%, 57% 3%, 90% 100%, 10% 100%);
+  clip-path: polygon(45% 3%, 55% 3%, 90% 100%, 10% 100%);
   z-index: 3;
 }
 

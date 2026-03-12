@@ -90,7 +90,7 @@ function laneCenterAtDepth(lane: number, depth: number, width: number): number {
   const center = width / 2;
   // 手前と奥でレーンの広がりを変えて，擬似3Dのパースを作る．
   const nearSpread = width * 0.80;
-  const farSpread = width * 0.14;
+  const farSpread = width * 0.10;
   // lane を -0.5..+0.5 付近に正規化して左右係数にする．
   const t = (lane + 0.5) / LANE_COUNT - 0.5;
   const xNear = center + t * nearSpread;
@@ -1657,8 +1657,8 @@ export default function App(): JSX.Element {
       // 0..1 の進行度をパース深度へ写像して位置・サイズを計算．
       const headLinear = Math.max(0, 1 - (headTime - nowMs) / approachMs);
       const tailLinear = Math.max(0, 1 - (tailTime - nowMs) / approachMs);
-      const depthHead = Math.pow(headLinear, 1.5);
-      const depthTail = Math.pow(tailLinear, 1.5);
+      const depthHead = Math.pow(headLinear, 1.65);
+      const depthTail = Math.pow(tailLinear, 1.65);
       const yHeadRaw = 30 + (judgeLineY - 30) * depthHead;
       const yTailRaw = 30 + (judgeLineY - 30) * depthTail;
 
@@ -2129,18 +2129,18 @@ export default function App(): JSX.Element {
                     }}
                     className={`lane-fill lane-fill-${i + 1}`}
                     points={
-                      i === 0 ? "10,100 30,100 46.5,3 43,3" :
-                      i === 1 ? "30,100 50,100 50,3 46.5,3" :
-                      i === 2 ? "50,100 70,100 53.5,3 50,3" :
-                      "70,100 90,100 57,3 53.5,3"
+                      i === 0 ? "10,100 30,100 47.5,3 45,3" :
+                      i === 1 ? "30,100 50,100 50,3 47.5,3" :
+                      i === 2 ? "50,100 70,100 52.5,3 50,3" :
+                      "70,100 90,100 55,3 52.5,3"
                     }
                   />
                 ))}
-                <line className="lane-sep outer" x1="10" y1="100" x2="43" y2="3" />
-                <line className="lane-sep" x1="30" y1="100" x2="46.5" y2="3" />
+                <line className="lane-sep outer" x1="10" y1="100" x2="45" y2="3" />
+                <line className="lane-sep" x1="30" y1="100" x2="47.5" y2="3" />
                 <line className="lane-sep" x1="50" y1="100" x2="50" y2="3" />
-                <line className="lane-sep" x1="70" y1="100" x2="53.5" y2="3" />
-                <line className="lane-sep outer" x1="90" y1="100" x2="57" y2="3" />
+                <line className="lane-sep" x1="70" y1="100" x2="52.5" y2="3" />
+                <line className="lane-sep outer" x1="90" y1="100" x2="55" y2="3" />
               </svg>
               <div className="track-grid" />
               <div className="track-gloss" />
