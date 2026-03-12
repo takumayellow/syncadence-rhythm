@@ -83,21 +83,9 @@ type Runtime = {
   lastAudioError: string;
 };
 
-// 遠近（depth）に応じたレーン中心Xを返す．
-// depth=0 は奥側，depth=1 は手前側で，奥ほどレーン間隔を狭くする．
-function laneCenterAtDepth(lane: number, depth: number, width: number): number {
-  // 画面中心を基準に左右へ振り分ける．
-  const center = width / 2;
-  // 手前と奥でレーンの広がりを変えて，擬似3Dのパースを作る．
-  const nearSpread = width * 0.80;
-  const farSpread = width * 0.10;
-  // lane を -0.5..+0.5 付近に正規化して左右係数にする．
-  const t = (lane + 0.5) / LANE_COUNT - 0.5;
-  const xNear = center + t * nearSpread;
-  const xFar = center + t * farSpread;
-  // 奥座標と手前座標を depth で線形補間．
-  return xFar + (xNear - xFar) * depth;
-}
+// レーン全体の spread 係数（画面幅に対する比率）．
+const NEAR_SPREAD = 0.80;
+const FAR_SPREAD = 0.10;
 
 // public 配下の相対URLを，現在の base path に安全に解決する．
 function resolvePublicUrl(path: string): string {
@@ -112,19 +100,13 @@ function resolvePublicUrl(path: string): string {
 }
 
 // 指定 depth におけるレーンの左右境界を返す．
-// 中心点列から隣接中点を境界として組み立てる．
+// 全体幅を均等4分割して確実に等幅にする．
 function laneBoundsAtDepth(lane: number, depth: number, width: number): { left: number; right: number } {
-  const centers = Array.from({ length: LANE_COUNT }, (_, i) => laneCenterAtDepth(i, depth, width));
-  const bounds = new Array<number>(LANE_COUNT + 1);
-  // 最左境界は 0 番と 1 番の中心間隔を外側へ半分だけ延長して推定．
-  bounds[0] = centers[0] - (centers[1] - centers[0]) / 2;
-  for (let i = 1; i < LANE_COUNT; i += 1) {
-    // 隣接中心の中点をレーン境界にする．
-    bounds[i] = (centers[i - 1] + centers[i]) / 2;
-  }
-  // 最右境界も同様に外側へ半分延長．
-  bounds[LANE_COUNT] = centers[LANE_COUNT - 1] + (centers[LANE_COUNT - 1] - centers[LANE_COUNT - 2]) / 2;
-  return { left: bounds[lane], right: bounds[lane + 1] };
+  const center = width / 2;
+  const spread = width * (FAR_SPREAD + (NEAR_SPREAD - FAR_SPREAD) * depth);
+  const totalLeft = center - spread / 2;
+  const laneW = spread / LANE_COUNT;
+  return { left: totalLeft + laneW * lane, right: totalLeft + laneW * (lane + 1) };
 }
 
 // 0..1 の範囲にクランプする補助関数．
@@ -2215,7 +2197,7 @@ export default function App(): JSX.Element {
               <div className="track-gloss" />
             </div>
             {/* 透明ボタンで4レーンのポインタ入力を受け取る． */}
-            <div className="lanes" style={trackClipStyle}>
+            <div className="lanes">
               {[0, 1, 2, 3].map((i) => (
                 <button
                   key={i}
