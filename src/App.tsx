@@ -818,24 +818,31 @@ export default function App(): JSX.Element {
       }
       nearBounds.push(nearX);
       farBounds.push(farX);
-      seps.push({ x1: nearX, y1: judgeY, x2: farX, y2: VANISH_Y });
+      // 判定ラインからさらに下端まで延長
+      const extX = nearX - (farX - nearX) * 0.15;
+      seps.push({ x1: extX, y1: h, x2: farX, y2: VANISH_Y });
     }
-    // 各レーンのポリゴン
+    // 各レーンのポリゴン（下端は playfield 底辺まで延長）
     const polys = [0, 1, 2, 3].map((i) => {
       const nl = nearBounds[i];
       const nr = nearBounds[i + 1];
       const fl = farBounds[i];
       const fr = farBounds[i + 1];
-      return `${nl},${judgeY} ${nr},${judgeY} ${fr},${VANISH_Y} ${fl},${VANISH_Y}`;
+      // 判定ラインからさらに下へ延長した座標
+      const extL = nl - (fl - nl) * 0.15;
+      const extR = nr - (fr - nr) * 0.15;
+      return `${extL},${h} ${extR},${h} ${fr},${VANISH_Y} ${fl},${VANISH_Y}`;
     });
-    // clip-path (% 単位)
+    // clip-path (% 単位)．下端は 100% まで延長してノーツ通過領域もカバーする．
     const clipLeft = (farBounds[0] / w) * 100;
     const clipRight = (farBounds[LANE_COUNT] / w) * 100;
     const nearLeft = (nearBounds[0] / w) * 100;
     const nearRight = (nearBounds[LANE_COUNT] / w) * 100;
     const farYPct = (VANISH_Y / h) * 100;
-    const nearYPct = (judgeY / h) * 100;
-    const clip = `polygon(${clipLeft}% ${farYPct}%, ${clipRight}% ${farYPct}%, ${nearRight}% ${nearYPct}%, ${nearLeft}% ${nearYPct}%)`;
+    // 判定ラインの傾斜を下端まで延長
+    const extLeft = nearLeft - (nearLeft - clipLeft) * 0.15;
+    const extRight = nearRight + (clipRight - nearRight) * 0.15;
+    const clip = `polygon(${clipLeft}% ${farYPct}%, ${clipRight}% ${farYPct}%, ${extRight}% 100%, ${extLeft}% 100%)`;
     // 判定ラインの left / right
     const jLeftPct = (nearBounds[0] / w) * 100;
     const jRightPct = ((w - nearBounds[LANE_COUNT]) / w) * 100;
@@ -2212,7 +2219,9 @@ export default function App(): JSX.Element {
             <div className="judge-line" />
             {/* 判定ライン手前の背景装飾（パース付き）．ノーツと同じ座標系で描画． */}
             <div className="track-bg" aria-hidden="true" style={trackClipStyle}>
-              <svg className="track-perspective" ref={trackSvgRef}>
+              <svg className="track-perspective" ref={trackSvgRef}
+                viewBox={pfSize.w > 0 ? `0 0 ${pfSize.w} ${pfSize.h}` : undefined}
+                preserveAspectRatio="none">
                 {[0, 1, 2, 3].map((i) => (
                   <polygon
                     key={i}
