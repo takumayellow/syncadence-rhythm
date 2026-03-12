@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { parseMusicXml } from "./musicxml";
 import { parseMidi } from "./midi";
 import { extractMusicXmlFromMxl } from "./mxl";
@@ -2190,14 +2191,15 @@ export default function App(): JSX.Element {
 
   return (
     <>
-      {/* モバイル全画面エントリーオーバーレイ */}
-      {isMobileUi && !mobileEntryDismissed && (
+      {/* モバイル全画面エントリーオーバーレイ（body直下にPortalで配置） */}
+      {isMobileUi && !mobileEntryDismissed && createPortal(
         <div className="mobile-entry-overlay" onClick={handleMobileEntry}>
           <div className="mobile-entry-content">
             <div className="mobile-entry-icon">🎵</div>
             <div className="mobile-entry-text">タップしてスタート</div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       {/* 背景の発光エフェクト層． */}
       <div className="bg-glow" />
