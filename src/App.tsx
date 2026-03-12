@@ -285,41 +285,27 @@ function removeOverlapsWithLongNotes(notes: PlayNote[]): PlayNote[] {
 function fitChartToSongDuration(chart: PlayNote[], mediaDurationMs: number): PlayNote[] {
   if (!chart.length || !Number.isFinite(mediaDurationMs) || mediaDurationMs <= 0) return chart;
   const sorted = [...chart].sort((a, b) => a.hitTime - b.hitTime);
-  const minLeadIn = 550;
-  const desiredLast = Math.max(0, mediaDurationMs - 24);
 
-  // 譜面の実時間レンジを計算する．
-  const chartFirst = sorted[0].hitTime;
+  // 譜面の最終ノーツ時刻（譜面テンポ基準の絶対時刻）．
   const chartLast = Math.max(...sorted.map((n) => Math.max(n.hitTime, n.holdEndTime)));
-  const chartSpan = chartLast - chartFirst;
+  if (chartLast <= 0) return sorted;
 
-  // 譜面と曲の長さが 5% 以上ずれていれば比例スケーリングで全体を合わせる．
-  // これにより MusicXML のテンポと実音源の長さが一致する．
-  const playableMs = desiredLast - minLeadIn;
-  const ratio = chartSpan > 0 ? chartSpan / playableMs : 1;
-  const needsScale = chartSpan > 0 && (ratio > 1.05 || ratio < 0.95);
-  const scale = needsScale ? playableMs / chartSpan : 1;
+  // 譜面の全長とオーディオの全長を比較して，ずれが 5% 以上ならスケーリング．
+  // MusicXML の timeMs は「曲の先頭からの絶対時刻」なので原点(0)を維持したまま
+  // 全体の尺だけオーディオに合わせる．これでテンポの違いを吸収する．
+  const scale = mediaDurationMs / chartLast;
+  const needsScale = Math.abs(scale - 1) > 0.05;
 
-  const adjusted = sorted.map((n) => {
-    // スケーリング: 先頭ノーツを基準に比例配置し，リードインを加算．
-    const rawHit = needsScale
-      ? minLeadIn + (n.hitTime - chartFirst) * scale
-      : n.hitTime + (chartFirst < minLeadIn ? minLeadIn - chartFirst : 0);
-    const rawEnd = needsScale
-      ? minLeadIn + (n.holdEndTime - chartFirst) * scale
-      : n.holdEndTime + (chartFirst < minLeadIn ? minLeadIn - chartFirst : 0);
-
-    const clampedHit = Math.max(0, Math.min(desiredLast, Math.round(rawHit)));
-    const clampedEnd = Math.max(clampedHit, Math.min(desiredLast, Math.round(rawEnd)));
+  return sorted.map((n) => {
+    const hitTime = Math.max(0, Math.round(needsScale ? n.hitTime * scale : n.hitTime));
+    const holdEndTime = Math.max(hitTime, Math.round(needsScale ? n.holdEndTime * scale : n.holdEndTime));
     return {
       ...n,
-      hitTime: clampedHit,
-      holdEndTime: clampedEnd,
-      durationMs: Math.max(0, clampedEnd - clampedHit),
+      hitTime,
+      holdEndTime,
+      durationMs: Math.max(0, holdEndTime - hitTime),
     };
-  }).filter((n) => n.hitTime <= desiredLast + 4);
-
-  return adjusted;
+  });
 }
 
 // 譜面がスカスカかどうかを，ノーツ数・時間カバー率・密度で判定する．
@@ -986,7 +972,9 @@ export default function App(): JSX.Element {
     }
     setCustomAudioUrl(null);
     setCustomAudioName("");
-    setTimingOffsetMs(selectedScore.offsetMs || 0);
+    // offsetMs は rebuildChartForCurrentTime で hitTime に加算するため，
+    // timingOffsetMs（手動微調整用）は 0 で初期化する．
+    setTimingOffsetMs(0);
     setChartTempoBpmState(selectedScore.bpm || 66);
     const rt = runtimeRef.current;
     rt.importedEvents = [];
@@ -2182,7 +2170,7 @@ export default function App(): JSX.Element {
   // 曲ごとの保存チューニングを削除して既定値へ戻す．
   function resetTuneForSong(): void {
     localStorage.removeItem(tuneKey(selectedScore));
-    setTimingOffsetMs(selectedScore.offsetMs || 0);
+    setTimingOffsetMs(0);
     setChartTempoBpmState(selectedScore.bpm || 66);
     setRecalibrateOnNextStart(true);
     rebuildChartForCurrentTime();
