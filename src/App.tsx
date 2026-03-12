@@ -84,8 +84,8 @@ type Runtime = {
 };
 
 // レーン全体の spread 係数（画面幅に対する比率）．
-const NEAR_SPREAD = 0.82;
-const FAR_SPREAD = 0.06;
+const NEAR_SPREAD = 0.84;
+const FAR_SPREAD = 0.03;
 
 // public 配下の相対URLを，現在の base path に安全に解決する．
 function resolvePublicUrl(path: string): string {
@@ -1186,7 +1186,7 @@ export default function App(): JSX.Element {
   function createNoteElement(note: PlayNote): void {
     const svg = trackSvgRef.current;
     if (!svg) return;
-    const el = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+    const el = document.createElementNS("http://www.w3.org/2000/svg", "path");
     el.classList.add("note-poly");
     if (note.lane % 2) el.classList.add("alt");
     svg.appendChild(el);
@@ -1747,8 +1747,8 @@ export default function App(): JSX.Element {
       // 0..1 の進行度をパース深度へ写像して位置・サイズを計算．
       const headLinear = Math.max(0, 1 - (headTime - nowMs) / approachMs);
       const tailLinear = Math.max(0, 1 - (tailTime - nowMs) / approachMs);
-      const depthHead = Math.pow(headLinear, 1.8);
-      const depthTail = Math.pow(tailLinear, 1.8);
+      const depthHead = Math.pow(headLinear, 2.0);
+      const depthTail = Math.pow(tailLinear, 2.0);
       const vanishY = 30;
       const yHead = vanishY + (judgeLineY - vanishY) * depthHead;
       const yTail = vanishY + (judgeLineY - vanishY) * depthTail;
@@ -1759,7 +1759,7 @@ export default function App(): JSX.Element {
 
       if (!note.element) createNoteElement(note);
       if (!note.element) continue;
-      const el = note.element as unknown as SVGPolygonElement;
+      const el = note.element as unknown as SVGPathElement;
 
       // タップノーツは帯状の台形，ロングは head〜tail の台形全体
       const noteThickness = note.durationMs > 0
@@ -1778,12 +1778,21 @@ export default function App(): JSX.Element {
       const topBounds = laneBoundsAtDepth(note.lane, topDepth, pf.clientWidth);
       const botBounds = laneBoundsAtDepth(note.lane, botDepth, pf.clientWidth);
 
-      // SVG polygon points: 左上 → 右上 → 右下 → 左下
-      const pts = `${topBounds.left},${topY} ${topBounds.right},${topY} ${botBounds.right},${botY} ${botBounds.left},${botY}`;
+      // 角丸半径（ノーツの高さと幅の小さい方の 35%）
+      const noteH = botY - topY;
+      const minW = Math.min(topBounds.right - topBounds.left, botBounds.right - botBounds.left);
+      const r = Math.min(noteH * 0.35, minW * 0.18, 8);
 
-      if (pts !== note.lastStyleKey) {
-        note.lastStyleKey = pts;
-        el.setAttribute("points", pts);
+      // SVG path: 角丸の台形
+      const tl = topBounds.left;
+      const tr = topBounds.right;
+      const bl = botBounds.left;
+      const br = botBounds.right;
+      const d = `M${tl + r},${topY} L${tr - r},${topY} Q${tr},${topY} ${tr},${topY + r} L${br},${botY - r} Q${br},${botY} ${br - r},${botY} L${bl + r},${botY} Q${bl},${botY} ${bl},${botY - r} L${tl},${topY + r} Q${tl},${topY} ${tl + r},${topY}Z`;
+
+      if (d !== note.lastStyleKey) {
+        note.lastStyleKey = d;
+        el.setAttribute("d", d);
         el.style.display = "block";
       }
     }
