@@ -2190,6 +2190,15 @@ export default function App(): JSX.Element {
 
   return (
     <>
+      {/* 縦画面時の回転促しメッセージ */}
+      {isMobileUi && (
+        <div className="portrait-message">
+          <div className="portrait-message-icon">📱</div>
+          <div className="portrait-message-text">
+            画面を横向きにしてください
+          </div>
+        </div>
+      )}
       {/* 背景の発光エフェクト層． */}
       <div className="bg-glow" />
       <main className="app">
