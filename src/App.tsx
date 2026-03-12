@@ -1783,12 +1783,32 @@ export default function App(): JSX.Element {
       const minW = Math.min(topBounds.right - topBounds.left, botBounds.right - botBounds.left);
       const r = Math.min(noteH * 0.35, minW * 0.18, 8);
 
-      // SVG path: 角丸の台形
+      // SVG path: 角丸の台形（斜辺に沿った角丸）
       const tl = topBounds.left;
       const tr = topBounds.right;
       const bl = botBounds.left;
       const br = botBounds.right;
-      const d = `M${tl + r},${topY} L${tr - r},${topY} Q${tr},${topY} ${tr},${topY + r} L${br},${botY - r} Q${br},${botY} ${br - r},${botY} L${bl + r},${botY} Q${bl},${botY} ${bl},${botY - r} L${tl},${topY + r} Q${tl},${topY} ${tl + r},${topY}Z`;
+      const h = noteH;
+      // 各辺の長さに対する r の割合で補間位置を計算
+      // 右辺: (tr,topY) → (br,botY)
+      const rSideLen = Math.hypot(br - tr, h);
+      const rFrac = Math.min(r / rSideLen, 0.4);
+      // 左辺: (bl,botY) → (tl,topY)
+      const lSideLen = Math.hypot(tl - bl, h);
+      const lFrac = Math.min(r / lSideLen, 0.4);
+      // 右辺上端から r 分進んだ点
+      const r1x = tr + (br - tr) * rFrac;
+      const r1y = topY + h * rFrac;
+      // 右辺下端から r 分手前の点
+      const r2x = br - (br - tr) * rFrac;
+      const r2y = botY - h * rFrac;
+      // 左辺下端から r 分進んだ点（下→上方向）
+      const l1x = bl + (tl - bl) * lFrac;
+      const l1y = botY - h * lFrac;
+      // 左辺上端から r 分手前の点
+      const l2x = tl - (tl - bl) * lFrac;
+      const l2y = topY + h * lFrac;
+      const d = `M${tl + r},${topY} L${tr - r},${topY} Q${tr},${topY} ${r1x},${r1y} L${r2x},${r2y} Q${br},${botY} ${br - r},${botY} L${bl + r},${botY} Q${bl},${botY} ${l1x},${l1y} L${l2x},${l2y} Q${tl},${topY} ${tl + r},${topY}Z`;
 
       if (d !== note.lastStyleKey) {
         note.lastStyleKey = d;
