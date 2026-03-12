@@ -234,31 +234,17 @@ body {
   border-radius: 2px;
 }
 
-#notes-layer {
-  position: absolute;
-  inset: 0;
-  z-index: 5;
-  pointer-events: none;
+/* SVG ノーツ（レーン内ポリゴン） */
+.note-poly {
+  fill: var(--note-a);
+  opacity: 0.92;
+  stroke: rgba(255, 255, 255, 0.5);
+  stroke-width: 1;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.5));
 }
 
-.note {
-  position: absolute;
-  border-radius: 10px;
-  background: linear-gradient(180deg, rgba(255,255,255,0.26), transparent 28%), var(--note-a);
-  border: 1px solid rgba(255,255,255,0.35);
-  box-shadow: 0 8px 18px rgba(0,0,0,0.4);
-  transform-origin: center;
-}
-
-.note.alt {
-  background: linear-gradient(180deg, rgba(255,255,255,0.24), transparent 28%), var(--note-b);
-}
-
-.note.long-note {
-  border-radius: 12px;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.35), rgba(255,255,255,0.08) 22%, rgba(0,0,0,0.06) 100%),
-    linear-gradient(180deg, #69ffe2, #14b6ff);
+.note-poly.alt {
+  fill: var(--note-b);
   box-shadow: 0 10px 20px rgba(0, 0, 0, 0.38), inset 0 0 0 1px rgba(255,255,255,0.24);
   transform-origin: top left;
 }

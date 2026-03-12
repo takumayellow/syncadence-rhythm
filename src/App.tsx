@@ -1196,13 +1196,15 @@ export default function App(): JSX.Element {
     }
   }
 
-  // DOM ノーツ要素を遅延生成して note に紐付ける．
+  // SVG ノーツ要素を遅延生成して note に紐付ける．
   function createNoteElement(note: PlayNote): void {
-    if (!notesLayerRef.current) return;
-    const el = document.createElement("div");
-    el.className = `note${note.lane % 2 ? " alt" : ""}`;
-    notesLayerRef.current.appendChild(el);
-    note.element = el;
+    const svg = trackSvgRef.current;
+    if (!svg) return;
+    const el = document.createElementNS("http://www.w3.org/2000/svg", "polygon");
+    el.classList.add("note-poly");
+    if (note.lane % 2) el.classList.add("alt");
+    svg.appendChild(el);
+    note.element = el as unknown as HTMLDivElement;
   }
 
   // 現在の設定/曲情報に基づき譜面を再構築する．
@@ -1233,7 +1235,10 @@ export default function App(): JSX.Element {
     rt.chartEndMs = Math.max(0, rt.mediaDurationMs - 8);
     // 達成率計算用の理論満点（ロングは頭+尻を想定して高め）．
     rt.possiblePoints = rt.chart.reduce((s, n) => s + (n.durationMs > 0 ? 2200 : 1000), 0);
-    if (notesLayerRef.current) notesLayerRef.current.innerHTML = "";
+    // SVG ノーツ要素をクリア
+    if (trackSvgRef.current) {
+      trackSvgRef.current.querySelectorAll(".note-poly").forEach((el) => el.remove());
+    }
     for (const note of rt.chart) {
       if (note.hitTime < now - JUDGE_WINDOWS.miss && note.durationMs === 0) {
         note.judged = true;
@@ -1758,68 +1763,42 @@ export default function App(): JSX.Element {
       const tailLinear = Math.max(0, 1 - (tailTime - nowMs) / approachMs);
       const depthHead = Math.pow(headLinear, 1.65);
       const depthTail = Math.pow(tailLinear, 1.65);
-      const yHeadRaw = 30 + (judgeLineY - 30) * depthHead;
-      const yTailRaw = 30 + (judgeLineY - 30) * depthTail;
+      const vanishY = 30;
+      const yHead = vanishY + (judgeLineY - vanishY) * depthHead;
+      const yTail = vanishY + (judgeLineY - vanishY) * depthTail;
 
+      // レーン境界から直接ノーツのポリゴン座標を算出（レールと完全一致）．
       const laneHead = laneBoundsAtDepth(note.lane, depthHead, pf.clientWidth);
       const laneTail = laneBoundsAtDepth(note.lane, depthTail, pf.clientWidth);
-      const laneHeadW = Math.max(22, laneHead.right - laneHead.left);
-      const laneTailW = Math.max(16, laneTail.right - laneTail.left);
-      // ノーツ幅はレーン幅に追従させる．
-      const wHead = laneHeadW * NOTE_LANE_FILL_RATIO;
-      const wTail = laneTailW * NOTE_LANE_FILL_RATIO;
-      const hHead = 26 * (0.58 + depthHead * 1.2);
-      const hTail = 26 * (0.58 + depthTail * 1.2);
-      const yHead = yHeadRaw;
-      const yTail = yTailRaw;
-      const xHead = laneHead.left + (laneHeadW - wHead) / 2;
-      const xTail = laneTail.left + (laneTailW - wTail) / 2;
-      const skew = (note.lane - 1.5) * -1.8 * (1 - depthHead);
 
       if (!note.element) createNoteElement(note);
       if (!note.element) continue;
-      let drawX = xHead;
-      let drawY = yHead - hHead / 2;
-      let drawW = wHead;
-      let drawH = hHead;
-      let drawClip = "";
-      let drawTransform = `skewX(${skew.toFixed(2)}deg)`;
+      const el = note.element as unknown as SVGPolygonElement;
 
-      if (note.durationMs > 0) {
-        // ロングは頭と尻を囲む矩形+clip-path で台形に描画する．
-        const left = Math.min(xHead, xTail);
-        const right = Math.max(xHead + wHead, xTail + wTail);
-        const top = Math.min(yTail - hTail / 2, yHead - hHead / 2);
-        const bottom = Math.max(yHead + hHead / 2, yTail + hTail / 2);
-        drawX = left;
-        drawY = top;
-        drawW = right - left;
-        drawH = Math.max(hHead, bottom - top);
+      // タップノーツは帯状の台形，ロングは head〜tail の台形全体
+      const noteThickness = note.durationMs > 0
+        ? 0
+        : Math.max(4, 18 * (0.4 + depthHead * 0.8));
+      const topY = note.durationMs > 0 ? yTail : yHead - noteThickness / 2;
+      const botY = note.durationMs > 0 ? yHead : yHead + noteThickness / 2;
 
-        const p1x = ((xTail - left) / drawW) * 100;
-        const p2x = ((xTail + wTail - left) / drawW) * 100;
-        const p3x = ((xHead + wHead - left) / drawW) * 100;
-        const p4x = ((xHead - left) / drawW) * 100;
-        const p1y = (((yTail - hTail / 2) - top) / drawH) * 100;
-        const p3y = (((yHead + hHead / 2) - top) / drawH) * 100;
-        drawClip = `polygon(${p1x}% ${p1y}%, ${p2x}% ${p1y}%, ${p3x}% ${p3y}%, ${p4x}% ${p3y}%)`;
-        drawTransform = "none";
-        note.element.classList.add("long-note");
-      } else {
-        note.element.classList.remove("long-note");
-      }
+      // topY での depth を逆算してレーン境界を取得
+      const topDepth = note.durationMs > 0
+        ? depthTail
+        : Math.max(0, (topY - vanishY) / (judgeLineY - vanishY));
+      const botDepth = note.durationMs > 0
+        ? depthHead
+        : Math.max(0, (botY - vanishY) / (judgeLineY - vanishY));
+      const topBounds = laneBoundsAtDepth(note.lane, topDepth, pf.clientWidth);
+      const botBounds = laneBoundsAtDepth(note.lane, botDepth, pf.clientWidth);
 
-      // スタイル文字列が同一なら DOM 更新をスキップして負荷を下げる．
-      const key = [drawX.toFixed(1), drawY.toFixed(1), drawW.toFixed(1), drawH.toFixed(1), drawClip].join("|");
-      if (key !== note.lastStyleKey) {
-        note.lastStyleKey = key;
-        note.element.style.display = "block";
-        note.element.style.left = `${drawX}px`;
-        note.element.style.top = `${drawY}px`;
-        note.element.style.width = `${drawW}px`;
-        note.element.style.height = `${drawH}px`;
-        note.element.style.transform = drawTransform;
-        note.element.style.clipPath = drawClip || "none";
+      // SVG polygon points: 左上 → 右上 → 右下 → 左下
+      const pts = `${topBounds.left},${topY} ${topBounds.right},${topY} ${botBounds.right},${botY} ${botBounds.left},${botY}`;
+
+      if (pts !== note.lastStyleKey) {
+        note.lastStyleKey = pts;
+        el.setAttribute("points", pts);
+        el.style.display = "block";
       }
     }
   }
@@ -2248,7 +2227,7 @@ export default function App(): JSX.Element {
               ))}
             </div>
             {/* ノーツDOMを imperative に配置する専用レイヤー． */}
-            <div id="notes-layer" ref={notesLayerRef} />
+            {/* ノーツは track SVG 内に polygon として描画 */}
             <div className={`hit-feedback ${hitFeedback.visible ? "" : "hidden"} ${hitFeedback.className}`}>
               {hitFeedback.text}
             </div>
