@@ -774,77 +774,81 @@ export default function App(): JSX.Element {
     return () => ro.disconnect();
   }, []);
 
-  // ノーツと同じ座標系でレール形状・判定ライン・clip-path を計算する．
+  // depth → Y 座標変換のための定数．ノーツ描画でも同じ値を使う．
   const VANISH_Y = 30;
+
+  // depth から Y 座標を返すヘルパー（ノーツ updateNotes と共通ロジック）．
+  function depthToY(depth: number, judgeY: number): number {
+    return VANISH_Y + (judgeY - VANISH_Y) * depth;
+  }
+
+  // レールとノーツが同じ laneBoundsAtDepth を使って完全一致する track geometry．
   const trackGeometry = useMemo(() => {
     const { w, h } = pfSize;
     if (w <= 0 || h <= 0) return null;
     const judgeY = h - judgeLineOffsetPx;
-    // depth=0 → far (vanish), depth=1 → near (judge line)
-    // y = VANISH_Y + (judgeY - VANISH_Y) * depth  →  depth = (y - VANISH_Y) / (judgeY - VANISH_Y)
-    // レーン区切り線: 5本 (外左, 1-2境界, 2-3境界, 3-4境界, 外右)
+
+    // depth=0 (消失点) から depth=1.15 (判定ライン越え) まで直線サンプル
+    const dNear = 1.15; // 判定ライン下まで少し延長
+    const yNear = depthToY(dNear, judgeY);
+    const yFar = depthToY(0, judgeY);
+
+    // 5本のレーン境界線 (lane 0左端 〜 lane 3右端)
     const seps: { x1: number; y1: number; x2: number; y2: number }[] = [];
-    // far 端と near 端の境界X座標
-    const farBounds: number[] = [];
-    const nearBounds: number[] = [];
-    for (let lane = 0; lane <= LANE_COUNT; lane++) {
-      // laneBoundsAtDepth は lane index (0-3) を受け取るので、境界は隣接レーンから取る
-      let nearX: number;
-      let farX: number;
-      if (lane < LANE_COUNT) {
-        nearX = laneBoundsAtDepth(lane, 1.0, w).left;
-        farX = laneBoundsAtDepth(lane, 0.0, w).left;
-      } else {
-        nearX = laneBoundsAtDepth(lane - 1, 1.0, w).right;
-        farX = laneBoundsAtDepth(lane - 1, 0.0, w).right;
-      }
-      nearBounds.push(nearX);
-      farBounds.push(farX);
-      // 判定ラインからさらに下端まで延長
-      const extX = nearX - (farX - nearX) * 0.15;
-      seps.push({ x1: extX, y1: h, x2: farX, y2: VANISH_Y });
+    for (let b = 0; b <= LANE_COUNT; b++) {
+      const farX = b < LANE_COUNT
+        ? laneBoundsAtDepth(b, 0, w).left
+        : laneBoundsAtDepth(b - 1, 0, w).right;
+      const nearX = b < LANE_COUNT
+        ? laneBoundsAtDepth(b, dNear, w).left
+        : laneBoundsAtDepth(b - 1, dNear, w).right;
+      seps.push({ x1: nearX, y1: yNear, x2: farX, y2: yFar });
     }
-    // 各レーンのポリゴン（下端は playfield 底辺まで延長）
+
+    // 各レーンのポリゴン
     const polys = [0, 1, 2, 3].map((i) => {
-      const nl = nearBounds[i];
-      const nr = nearBounds[i + 1];
-      const fl = farBounds[i];
-      const fr = farBounds[i + 1];
-      // 判定ラインからさらに下へ延長した座標
-      const extL = nl - (fl - nl) * 0.15;
-      const extR = nr - (fr - nr) * 0.15;
-      return `${extL},${h} ${extR},${h} ${fr},${VANISH_Y} ${fl},${VANISH_Y}`;
+      const fL = laneBoundsAtDepth(i, 0, w).left;
+      const fR = laneBoundsAtDepth(i, 0, w).right;
+      const nL = laneBoundsAtDepth(i, dNear, w).left;
+      const nR = laneBoundsAtDepth(i, dNear, w).right;
+      return `${nL},${yNear} ${nR},${yNear} ${fR},${yFar} ${fL},${yFar}`;
     });
-    // clip-path (% 単位)．下端は 100% まで延長してノーツ通過領域もカバーする．
-    const clipLeft = (farBounds[0] / w) * 100;
-    const clipRight = (farBounds[LANE_COUNT] / w) * 100;
-    const nearLeft = (nearBounds[0] / w) * 100;
-    const nearRight = (nearBounds[LANE_COUNT] / w) * 100;
-    const farYPct = (VANISH_Y / h) * 100;
-    // 判定ラインの傾斜を下端まで延長
-    const extLeft = nearLeft - (nearLeft - clipLeft) * 0.15;
-    const extRight = nearRight + (clipRight - nearRight) * 0.15;
-    const clip = `polygon(${clipLeft}% ${farYPct}%, ${clipRight}% ${farYPct}%, ${extRight}% 100%, ${extLeft}% 100%)`;
-    // 判定ラインの left / right
-    const jLeftPct = (nearBounds[0] / w) * 100;
-    const jRightPct = ((w - nearBounds[LANE_COUNT]) / w) * 100;
-    return { seps, polys, clip, jLeftPct, jRightPct, w, h };
+
+    // clip-path
+    const fL0 = laneBoundsAtDepth(0, 0, w);
+    const fR3 = laneBoundsAtDepth(3, 0, w);
+    const nL0 = laneBoundsAtDepth(0, dNear, w);
+    const nR3 = laneBoundsAtDepth(3, dNear, w);
+    const clip = `polygon(${(fL0.left / w) * 100}% ${(yFar / h) * 100}%, ${(fR3.right / w) * 100}% ${(yFar / h) * 100}%, ${(nR3.right / w) * 100}% ${(yNear / h) * 100}%, ${(nL0.left / w) * 100}% ${(yNear / h) * 100}%)`;
+
+    // 判定ラインの left / right (depth=1.0 のレーン境界)
+    const jL = laneBoundsAtDepth(0, 1.0, w).left;
+    const jR = laneBoundsAtDepth(3, 1.0, w).right;
+    const jLeftPct = (jL / w) * 100;
+    const jRightPct = ((w - jR) / w) * 100;
+
+    return { seps, polys, clip, jLeftPct, jRightPct, w, h, yFar, yNear };
   }, [pfSize, judgeLineOffsetPx]);
 
   // track geometry が変わったら SVG と CSS 変数を更新する．
   useEffect(() => {
     if (!trackGeometry) return;
-    const { seps, polys, clip, jLeftPct, jRightPct } = trackGeometry;
+    const { seps, polys, jLeftPct, jRightPct, w, h } = trackGeometry;
+
+    // SVG viewBox を playfield サイズに合わせる
+    const svg = trackSvgRef.current;
+    if (svg) {
+      svg.setAttribute("viewBox", `0 0 ${w} ${h}`);
+    }
+
     // SVG ポリゴン更新
     laneVisualRefs.current.forEach((el, i) => {
       if (el && polys[i]) el.setAttribute("points", polys[i]);
     });
+
     // SVG ライン更新（セパレータ）
-    const svg = trackSvgRef.current;
     if (svg) {
-      const lines = svg.querySelectorAll("line");
-      // 既存の line を削除して再生成
-      lines.forEach((l) => l.remove());
+      svg.querySelectorAll("line.lane-sep").forEach((l) => l.remove());
       seps.forEach((s, i) => {
         const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
         line.setAttribute("x1", String(s.x1));
@@ -856,13 +860,13 @@ export default function App(): JSX.Element {
         svg.appendChild(line);
       });
     }
+
     // 判定ラインの左右位置
     const pf = playfieldRef.current;
     if (pf) {
       pf.style.setProperty("--judge-line-left", `${jLeftPct}%`);
       pf.style.setProperty("--judge-line-right", `${jRightPct}%`);
     }
-    // track-bg の clip-path は inline style で渡す (trackClipStyle)
   }, [trackGeometry]);
 
   const trackClipStyle = useMemo(() => {
@@ -2181,7 +2185,6 @@ export default function App(): JSX.Element {
             {/* 判定ライン手前の背景装飾（パース付き）．ノーツと同じ座標系で描画． */}
             <div className="track-bg" aria-hidden="true" style={trackClipStyle}>
               <svg className="track-perspective" ref={trackSvgRef}
-                viewBox={pfSize.w > 0 ? `0 0 ${pfSize.w} ${pfSize.h}` : undefined}
                 preserveAspectRatio="none">
                 {[0, 1, 2, 3].map((i) => (
                   <polygon
