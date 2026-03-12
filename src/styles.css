@@ -287,6 +287,37 @@ body[data-ui-mode="mobile"] {
   /* ポートレート時は CSS transform で横向き表示を強制する */
 }
 
+/* モバイル全画面エントリーオーバーレイ */
+.mobile-entry-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a14 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.mobile-entry-content {
+  text-align: center;
+  animation: entry-pulse 2s ease-in-out infinite;
+}
+.mobile-entry-icon {
+  font-size: 64px;
+  margin-bottom: 24px;
+}
+.mobile-entry-text {
+  font-size: 22px;
+  color: rgba(255, 255, 255, 0.9);
+  letter-spacing: 2px;
+  font-weight: 600;
+}
+@keyframes entry-pulse {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.05); }
+}
+
 body[data-ui-mode="mobile"] .app {
   padding: 4px 4px 0;
   margin-top: 0;

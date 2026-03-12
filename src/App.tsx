@@ -709,6 +709,7 @@ export default function App(): JSX.Element {
   });
   const feedbackTimerRef = useRef<number | null>(null);
   const customAudioObjectUrlRef = useRef<string | null>(null);
+  const [mobileEntryDismissed, setMobileEntryDismissed] = useState(false);
   const isMobileUi = uiMode === "mobile";
 
   // URL から UI モードを判定する．
@@ -737,6 +738,17 @@ export default function App(): JSX.Element {
       document.body.removeAttribute("data-ui-mode");
     };
   }, [uiMode]);
+
+  // モバイルエントリータップで全画面＋横画面ロックを発動する．
+  const handleMobileEntry = async () => {
+    try {
+      await document.documentElement.requestFullscreen?.();
+    } catch { /* 全画面が使えない端末もある */ }
+    try {
+      await (screen.orientation as any).lock?.("landscape");
+    } catch { /* orientation lock 非対応の場合は CSS 回転でカバー */ }
+    setMobileEntryDismissed(true);
+  };
 
   // 永続化された設定値を初期読み込みする．
   useEffect(() => {
@@ -2159,6 +2171,15 @@ export default function App(): JSX.Element {
 
   return (
     <>
+      {/* モバイル全画面エントリーオーバーレイ */}
+      {isMobileUi && !mobileEntryDismissed && (
+        <div className="mobile-entry-overlay" onClick={handleMobileEntry}>
+          <div className="mobile-entry-content">
+            <div className="mobile-entry-icon">🎵</div>
+            <div className="mobile-entry-text">タップしてスタート</div>
+          </div>
+        </div>
+      )}
       {/* 背景の発光エフェクト層． */}
       <div className="bg-glow" />
       <main className="app">
