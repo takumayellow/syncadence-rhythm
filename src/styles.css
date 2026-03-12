@@ -281,18 +281,54 @@ body {
 }
 
 body[data-ui-mode="mobile"] {
-  overflow: hidden;
-  padding: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
   margin: 0;
-  display: block;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   min-height: 0;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(0, 235, 255, 0.18), transparent 40%),
+    radial-gradient(circle at 80% 10%, rgba(255, 102, 175, 0.2), transparent 35%),
+    linear-gradient(150deg, var(--bg-1), var(--bg-2));
 }
 
-/* モバイル全画面エントリーオーバーレイ
-   body に transform がかかると fixed が壊れるので absolute + 親サイズ100% で対応 */
+/* 横向き: そのままビューポートいっぱい */
+@media (orientation: landscape) {
+  body[data-ui-mode="mobile"] {
+    width: 100vw;
+    width: 100dvw;
+    height: 100vh;
+    height: 100dvh;
+  }
+}
+
+/* 縦向き: body を90度回転して強制横向き */
+@media (orientation: portrait) {
+  body[data-ui-mode="mobile"] {
+    width: 100vh;
+    width: 100dvh;
+    height: 100vw;
+    height: 100dvw;
+    transform: rotate(90deg) translateX(-100%);
+    transform-origin: top left;
+  }
+}
+
+body[data-ui-mode="mobile"] #root {
+  display: contents;
+}
+
+/* モバイル全画面エントリーオーバーレイ */
 .mobile-entry-overlay {
-  position: absolute;
-  inset: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 9999;
   background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a14 100%);
   display: flex;
@@ -320,49 +356,20 @@ body[data-ui-mode="mobile"] {
   50% { opacity: 1; transform: scale(1.05); }
 }
 
-/* #root をモバイル時はビューポート全体に広げる */
-body[data-ui-mode="mobile"] #root {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
+body[data-ui-mode="mobile"] .bg-glow {
+  display: none;
 }
 
 body[data-ui-mode="mobile"] .app {
   padding: 4px 4px 0;
-  margin-top: 0;
+  margin: 0;
   gap: 4px;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   width: 100%;
-  height: 100%;
-}
-
-/* 端末が既に横向きの場合: そのままビューポートいっぱい */
-@media (orientation: landscape) {
-  body[data-ui-mode="mobile"] {
-    position: fixed;
-    inset: 0;
-    width: 100vw;
-    width: 100dvw;
-    height: 100vh;
-    height: 100dvh;
-  }
-}
-
-/* 端末が縦向きの場合: body ごと90度回転して強制横向き */
-@media (orientation: portrait) {
-  body[data-ui-mode="mobile"] {
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vh;
-    width: 100dvh;
-    height: 100vw;
-    height: 100dvw;
-    transform: rotate(90deg) translateX(-100%);
-    transform-origin: top left;
-  }
+  flex: 1;
+  min-height: 0;
 }
 
 body[data-ui-mode="mobile"] .topbar {
