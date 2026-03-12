@@ -814,6 +814,15 @@ export default function App(): JSX.Element {
     if (Number.isFinite(savedJudge) && savedJudge >= 70 && savedJudge <= 180) setJudgeLineOffsetPxState(savedJudge);
   }, []);
 
+  // モバイル判定後，保存値がなければ判定ラインを下端寄り(50px)に設定する．
+  useEffect(() => {
+    if (!isMobileUi) return;
+    const savedJudge = localStorage.getItem("pjsk_judge_line_px");
+    if (!savedJudge) {
+      setJudgeLineOffsetPxState(50);
+    }
+  }, [isMobileUi]);
+
   // state 更新時に settingsRef と localStorage を同期する．
   useEffect(() => {
     settingsRef.current = { noteSpeed, timingOffsetMs, chartTempoBpm, judgeLineOffsetPx };

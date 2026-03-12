@@ -438,6 +438,7 @@ body[data-ui-mode="mobile"] .playfield {
   height: 100%;
   border-width: 1px;
   border-radius: 10px 10px 0 0;
+  --judge-line-bottom: 50px;
 }
 
 body[data-ui-mode="mobile"] .mobile-song-chip {
@@ -459,7 +460,7 @@ body[data-ui-mode="mobile"] .countdown-overlay {
 
 body[data-ui-mode="mobile"] .hit-feedback {
   font-size: 1.2rem;
-  bottom: calc(var(--judge-line-bottom, 110px) + 10px);
+  bottom: calc(var(--judge-line-bottom, 50px) + 10px);
 }
 
 /* モバイル用コンパクトツールバー: START / 曲選択 / SETTINGS を1行に収める */
