@@ -774,7 +774,18 @@ export default function App(): JSX.Element {
     localStorage.setItem("pjsk_chart_tempo_bpm", String(chartTempoBpm));
     localStorage.setItem("pjsk_judge_line_px", String(Math.round(judgeLineOffsetPx)));
     if (playfieldRef.current) {
-      playfieldRef.current.style.setProperty("--judge-line-bottom", `${judgeLineOffsetPx}px`);
+      const pf = playfieldRef.current;
+      pf.style.setProperty("--judge-line-bottom", `${judgeLineOffsetPx}px`);
+      // 判定ラインはdepth≈1.0（手前端）でのレーン境界に合わせる．
+      const pfW = pf.clientWidth;
+      if (pfW > 0) {
+        const outerLeft = laneBoundsAtDepth(0, 1.0, pfW);
+        const outerRight = laneBoundsAtDepth(3, 1.0, pfW);
+        const leftPct = (outerLeft.left / pfW) * 100;
+        const rightPct = ((pfW - outerRight.right) / pfW) * 100;
+        pf.style.setProperty("--judge-line-left", `${leftPct}%`);
+        pf.style.setProperty("--judge-line-right", `${rightPct}%`);
+      }
     }
   }, [noteSpeed, timingOffsetMs, chartTempoBpm, judgeLineOffsetPx]);
 
@@ -1655,9 +1666,9 @@ export default function App(): JSX.Element {
       const laneTail = laneBoundsAtDepth(note.lane, depthTail, pf.clientWidth);
       const laneHeadW = Math.max(22, laneHead.right - laneHead.left);
       const laneTailW = Math.max(16, laneTail.right - laneTail.left);
-      // ノーツ幅は遠近で拡大しつつ，レーン幅をはみ出さないよう制約．
-      const wHead = Math.min(NOTE_BASE_WIDTH * (0.6 + depthHead * 1.2), laneHeadW * NOTE_LANE_FILL_RATIO);
-      const wTail = Math.min(NOTE_BASE_WIDTH * (0.6 + depthTail * 1.2), laneTailW * NOTE_LANE_FILL_RATIO);
+      // ノーツ幅はレーン幅に追従させる．
+      const wHead = laneHeadW * NOTE_LANE_FILL_RATIO;
+      const wTail = laneTailW * NOTE_LANE_FILL_RATIO;
       const hHead = 26 * (0.58 + depthHead * 1.2);
       const hTail = 26 * (0.58 + depthTail * 1.2);
       const yHead = yHeadRaw;

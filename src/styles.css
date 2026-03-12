@@ -224,13 +224,14 @@ body {
 
 .judge-line {
   position: absolute;
-  left: 0;
-  right: 0;
+  left: var(--judge-line-left, 10%);
+  right: var(--judge-line-right, 10%);
   bottom: var(--judge-line-bottom, 110px);
   height: 5px;
   background: var(--line);
   box-shadow: 0 0 22px rgba(255, 245, 168, 0.95);
   z-index: 6;
+  border-radius: 2px;
 }
 
 #notes-layer {
