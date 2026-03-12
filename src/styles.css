@@ -289,15 +289,10 @@ body {
   text-overflow: ellipsis;
 }
 
-/* モバイル全画面エントリーオーバーレイ
-   html 要素の直下に Portal で配置するため，body の transform の影響を受けない */
+/* モバイル全画面エントリーオーバーレイ（.app 内に配置，body 回転に追従） */
 .mobile-entry-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  height: 100dvh;
+  position: absolute;
+  inset: 0;
   z-index: 9999;
   background: radial-gradient(ellipse at center, #1a1a2e 0%, #0a0a14 100%);
   display: flex;
@@ -333,6 +328,7 @@ body[data-ui-mode="mobile"] {
 }
 
 body[data-ui-mode="mobile"] .app {
+  position: relative;
   padding: 4px 4px 0;
   margin-top: 0;
   gap: 4px;
