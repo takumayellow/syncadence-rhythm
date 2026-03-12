@@ -61,5 +61,70 @@
     "offsetMs": 1650,
     "bpm": 66,
     "lengthSec": 200
+  },
+  {
+    "id": "turkish-march-mozart",
+    "title": "トルコ行進曲",
+    "artist": "W.A.モーツァルト",
+    "audioUrl": "/scores/songs/turkish-march-mozart/audio.ogg",
+    "mxlPath": "/scores/songs/turkish-march-mozart/score.mxl",
+    "strictMode": true,
+    "offsetMs": 0,
+    "bpm": 120,
+    "lengthSec": 225
+  },
+  {
+    "id": "fur-elise-beethoven",
+    "title": "エリーゼのために",
+    "artist": "L.v.ベートーヴェン",
+    "audioUrl": "/scores/songs/fur-elise-beethoven/audio.ogg",
+    "mxlPath": "/scores/songs/fur-elise-beethoven/score.mxl",
+    "strictMode": true,
+    "offsetMs": 0,
+    "bpm": 72,
+    "lengthSec": 160
+  },
+  {
+    "id": "moonlight-sonata-beethoven",
+    "title": "月光ソナタ 第1楽章",
+    "artist": "L.v.ベートーヴェン",
+    "audioUrl": "/scores/songs/moonlight-sonata-beethoven/audio.ogg",
+    "mxlPath": "/scores/songs/moonlight-sonata-beethoven/score.mxl",
+    "strictMode": true,
+    "offsetMs": 0,
+    "bpm": 44,
+    "lengthSec": 337
+  },
+  {
+    "id": "la-campanella-liszt",
+    "title": "ラ・カンパネラ",
+    "artist": "フランツ・リスト",
+    "audioUrl": "/scores/songs/la-campanella-liszt/audio.ogg",
+    "mxlPath": "/scores/songs/la-campanella-liszt/score.mxl",
+    "strictMode": true,
+    "offsetMs": 0,
+    "bpm": 97,
+    "lengthSec": 278
+  },
+  {
+    "id": "hungarian-dance-brahms",
+    "title": "ハンガリー舞曲 第5番",
+    "artist": "ヨハネス・ブラームス",
+    "audioUrl": "/scores/songs/hungarian-dance-brahms/audio.ogg",
+    "mxlPath": "/scores/songs/hungarian-dance-brahms/score.mxl",
+    "strictMode": true,
+    "offsetMs": 0,
+    "bpm": 130,
+    "lengthSec": 228
+  },
+  {
+    "id": "minute-waltz-chopin",
+    "title": "ワルツ 作品64-2 嬰ハ短調",
+    "artist": "フレデリック・ショパン",
+    "audioUrl": "/scores/songs/minute-waltz-chopin/audio.ogg",
+    "mxlPath": "/scores/songs/minute-waltz-chopin/score.mxl",
+    "offsetMs": 0,
+    "bpm": 140,
+    "lengthSec": 120
   }
 ]
