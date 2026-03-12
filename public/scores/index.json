@@ -7,18 +7,18 @@
     "mxlPath": "/scores/songs/shishiriennu-op78-etude/score.mxl",
     "strictMode": true,
     "offsetMs": -120,
-    "bpm": 100,
-    "lengthSec": 240
+    "bpm": 75,
+    "lengthSec": 206
   },
   {
     "id": "lian-ai-cai-pan-40mp",
     "title": "恋愛裁判",
-    "artist": "Score + MP3",
+    "artist": "40mP",
     "audioUrl": "/scores/songs/lian-ai-cai-pan-40mp/audio.mp3",
     "mxlPath": "/scores/songs/lian-ai-cai-pan-40mp/score.mxl",
     "offsetMs": 0,
-    "bpm": 120,
-    "lengthSec": 240
+    "bpm": 134,
+    "lengthSec": 168
   },
   {
     "id": "g-senjo-no-aria",
@@ -28,8 +28,8 @@
     "mxlPath": "/scores/songs/g-senjo-no-aria/score.mxl",
     "strictMode": true,
     "offsetMs": -80,
-    "bpm": 86,
-    "lengthSec": 240
+    "bpm": 60,
+    "lengthSec": 192
   },
   {
     "id": "kanon-pachelbel",
@@ -39,8 +39,8 @@
     "mxlPath": "/scores/songs/kanon-pachelbel/score.mxl",
     "strictMode": true,
     "offsetMs": -80,
-    "bpm": 84,
-    "lengthSec": 240
+    "bpm": 100,
+    "lengthSec": 245
   },
   {
     "id": "chopin-nocturne",
