@@ -89,8 +89,8 @@ function laneCenterAtDepth(lane: number, depth: number, width: number): number {
   // 画面中心を基準に左右へ振り分ける．
   const center = width / 2;
   // 手前と奥でレーンの広がりを変えて，擬似3Dのパースを作る．
-  const nearSpread = width * 0.92;
-  const farSpread = width * 0.38;
+  const nearSpread = width * 0.95;
+  const farSpread = width * 0.24;
   // lane を -0.5..+0.5 付近に正規化して左右係数にする．
   const t = (lane + 0.5) / LANE_COUNT - 0.5;
   const xNear = center + t * nearSpread;
@@ -1646,10 +1646,10 @@ export default function App(): JSX.Element {
       // 0..1 の進行度をパース深度へ写像して位置・サイズを計算．
       const headLinear = Math.max(0, 1 - (headTime - nowMs) / approachMs);
       const tailLinear = Math.max(0, 1 - (tailTime - nowMs) / approachMs);
-      const depthHead = Math.pow(headLinear, 1.15);
-      const depthTail = Math.pow(tailLinear, 1.15);
-      const yHeadRaw = 55 + (judgeLineY - 55) * depthHead;
-      const yTailRaw = 55 + (judgeLineY - 55) * depthTail;
+      const depthHead = Math.pow(headLinear, 1.5);
+      const depthTail = Math.pow(tailLinear, 1.5);
+      const yHeadRaw = 30 + (judgeLineY - 30) * depthHead;
+      const yTailRaw = 30 + (judgeLineY - 30) * depthTail;
 
       const laneHead = laneBoundsAtDepth(note.lane, depthHead, pf.clientWidth);
       const laneTail = laneBoundsAtDepth(note.lane, depthTail, pf.clientWidth);
@@ -2118,18 +2118,18 @@ export default function App(): JSX.Element {
                     }}
                     className={`lane-fill lane-fill-${i + 1}`}
                     points={
-                      i === 0 ? "0,100 25,100 38,8 26,8" :
-                      i === 1 ? "25,100 50,100 50,8 38,8" :
-                      i === 2 ? "50,100 75,100 62,8 50,8" :
-                      "75,100 100,100 74,8 62,8"
+                      i === 0 ? "0,100 25,100 41,3 35,3" :
+                      i === 1 ? "25,100 50,100 47,3 41,3" :
+                      i === 2 ? "50,100 75,100 59,3 47,3" :  // 中心は 53 付近
+                      "75,100 100,100 65,3 59,3"
                     }
                   />
                 ))}
-                <line className="lane-sep outer" x1="0" y1="100" x2="26" y2="8" />
-                <line className="lane-sep" x1="25" y1="100" x2="38" y2="8" />
-                <line className="lane-sep" x1="50" y1="100" x2="50" y2="8" />
-                <line className="lane-sep" x1="75" y1="100" x2="62" y2="8" />
-                <line className="lane-sep outer" x1="100" y1="100" x2="74" y2="8" />
+                <line className="lane-sep outer" x1="0" y1="100" x2="35" y2="3" />
+                <line className="lane-sep" x1="25" y1="100" x2="41" y2="3" />
+                <line className="lane-sep" x1="50" y1="100" x2="53" y2="3" />
+                <line className="lane-sep" x1="75" y1="100" x2="59" y2="3" />
+                <line className="lane-sep outer" x1="100" y1="100" x2="65" y2="3" />
               </svg>
               <div className="track-grid" />
               <div className="track-gloss" />
