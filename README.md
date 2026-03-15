@@ -21,7 +21,7 @@ npm run dev
 
 ## 複数楽譜の保持
 
-- 楽譜配置: `public/scores/xml/`
+- 楽譜配置: `public/scores/songs/<id>/`
 - 曲一覧: `public/scores/index.json`
 
 `index.json`に1曲追加すると，画面右上の`Score Set`で選択できます．
@@ -32,8 +32,11 @@ npm run dev
 - `mxlPath`: 圧縮MusicXML（MXL）
 - `midiPath`: MIDIタイミング取得用
 - `audioUrl`: 音源URL（MIDIを指定した場合はブラウザ再生不可時に簡易シンセで再生）
+- `lengthSec`: 曲の長さ（秒）**必須**
+- `category`: カテゴリ（任意。`クラシック` / `ボカロ` / `アニメ` / `東方` / `J-POP`）
 
 ## 補足
 
-- 音源は `public/assets/audio/` に配置する．
+- 必要環境: Node.js v20 以上
+- 音源は `public/scores/songs/<id>/` に配置する．
 - 楽譜と音源は同じアレンジ由来を使うと同期精度が上がる．
