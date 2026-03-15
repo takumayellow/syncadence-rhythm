@@ -4,6 +4,8 @@ import { parseMidi } from "./midi";
 import { extractMusicXmlFromMxl } from "./mxl";
 import type { Judge, PlayNote, ScoreEvent, ScoreMeta, SongCategory } from "./types";
 import { SONG_CATEGORIES } from "./types";
+import { saveResult, getRanking } from "./ranking";
+import { RankingScreen } from "./RankingScreen";
 
 const LANE_COUNT = 4;
 const HIT_KEYS = ["KeyD", "KeyF", "KeyJ", "KeyK"];
@@ -68,6 +70,9 @@ type Runtime = {
   chartSourceMode: "grid" | "score";
   achievedPoints: number;
   possiblePoints: number;
+  perfectCount: number;
+  greatCount: number;
+  goodCount: number;
   missCount: number;
   combo: number;
   score: number;
@@ -640,6 +645,9 @@ export default function App(): JSX.Element {
     chartSourceMode: "grid",
     achievedPoints: 0,
     possiblePoints: 0,
+    perfectCount: 0,
+    greatCount: 0,
+    goodCount: 0,
     missCount: 0,
     combo: 0,
     score: 0,
@@ -708,9 +716,10 @@ export default function App(): JSX.Element {
     className: "judge-perfect",
     visible: false,
   });
-  const [result, setResult] = useState<{show:boolean;state:string;rank:string;acc:string;score:string}>({
-    show:false,state:"CLEAR!",rank:"RANK A",acc:"0.0%",score:"0"
+  const [result, setResult] = useState<{show:boolean;state:string;rank:string;acc:string;score:string;isNewBest:boolean}>({
+    show:false,state:"CLEAR!",rank:"RANK A",acc:"0.0%",score:"0",isNewBest:false
   });
+  const [rankingOpen, setRankingOpen] = useState(false);
   const feedbackTimerRef = useRef<number | null>(null);
   const customAudioObjectUrlRef = useRef<string | null>(null);
   const [mobileEntryDismissed, setMobileEntryDismissed] = useState(false);
@@ -1348,6 +1357,9 @@ export default function App(): JSX.Element {
     rt.score = 0;
     rt.combo = 0;
     rt.achievedPoints = 0;
+    rt.perfectCount = 0;
+    rt.greatCount = 0;
+    rt.goodCount = 0;
     rt.missCount = 0;
     setScore(0);
     setCombo(0);
@@ -1464,10 +1476,10 @@ export default function App(): JSX.Element {
     note.element?.remove();
     setJudge(j.toUpperCase());
     rt.score += SCORE_MAP[j];
-    if (j === "perfect") rt.achievedPoints += 1000;
-    else if (j === "great") rt.achievedPoints += 800;
-    else if (j === "good") rt.achievedPoints += 550;
-    else rt.missCount += 1;
+    if (j === "perfect") { rt.achievedPoints += 1000; rt.perfectCount += 1; }
+    else if (j === "great") { rt.achievedPoints += 800; rt.greatCount += 1; }
+    else if (j === "good") { rt.achievedPoints += 550; rt.goodCount += 1; }
+    else { rt.missCount += 1; }
     if (j === "miss") rt.combo = 0;
     else {
       rt.combo += 1;
@@ -1483,10 +1495,10 @@ export default function App(): JSX.Element {
     if (note.headJudged) return;
     const rt = runtimeRef.current;
     note.headJudged = true;
-    if (j === "perfect") rt.achievedPoints += 1000;
-    else if (j === "great") rt.achievedPoints += 800;
-    else if (j === "good") rt.achievedPoints += 550;
-    else rt.missCount += 1;
+    if (j === "perfect") { rt.achievedPoints += 1000; rt.perfectCount += 1; }
+    else if (j === "great") { rt.achievedPoints += 800; rt.greatCount += 1; }
+    else if (j === "good") { rt.achievedPoints += 550; rt.goodCount += 1; }
+    else { rt.missCount += 1; }
     if (j === "miss") rt.combo = 0;
     else {
       note.holding = true;
@@ -1511,6 +1523,7 @@ export default function App(): JSX.Element {
       rt.combo += 1;
       rt.score += 1200 + rt.combo * 10;
       rt.achievedPoints += 1200;
+      rt.perfectCount += 1;
       setJudge("PERFECT");
       showHitFeedback("perfect");
     } else {
@@ -2003,7 +2016,21 @@ export default function App(): JSX.Element {
     setProgress("Finished");
     const acc = rt.possiblePoints > 0 ? (rt.achievedPoints / rt.possiblePoints) * 100 : 0;
     const clear = acc >= 72 && rt.missCount < Math.max(30, Math.floor(rt.chart.length * 0.22));
-    setResult({ show: true, state: clear ? "CLEAR!" : "FAILED", rank: `RANK ${calcRank(acc)}`, acc: `${acc.toFixed(1)}%`, score: `${rt.score}` });
+    // Save to local ranking and check if new personal best.
+    const rankLabel = `RANK ${calcRank(acc)}`;
+    const isNewBest = saveResult({
+      songId: selectedScore.id,
+      songTitle: selectedScore.title,
+      score: rt.score,
+      accuracy: acc,
+      rank: rankLabel,
+      perfectCount: rt.perfectCount,
+      greatCount: rt.greatCount,
+      goodCount: rt.goodCount,
+      missCount: rt.missCount,
+      date: new Date().toISOString(),
+    });
+    setResult({ show: true, state: clear ? "CLEAR!" : "FAILED", rank: rankLabel, acc: `${acc.toFixed(1)}%`, score: `${rt.score}`, isNewBest });
   }
 
   // requestAnimationFrame のメインループ．
@@ -2348,7 +2375,13 @@ export default function App(): JSX.Element {
                 <p className="result-rank">{result.rank}</p>
                 <p className="result-score">SCORE {result.score}</p>
                 <p className="result-meta">ACCURACY {result.acc}</p>
-                <button className="primary result-restart" onClick={() => { resetGame(); startGame(); }}>RESTART</button>
+                {result.isNewBest && (
+                  <p className="result-new-best">★ 自己ベスト更新！</p>
+                )}
+                <div className="result-actions">
+                  <button className="primary result-restart" onClick={() => { resetGame(); startGame(); }}>RESTART</button>
+                  <button className="result-ranking-btn" onClick={() => setRankingOpen(true)}>RANKING</button>
+                </div>
               </div>
             </div>
           </div>
@@ -2359,6 +2392,7 @@ export default function App(): JSX.Element {
           <footer className="controls">
             <button className="primary" onClick={() => { resetGame(); startGame(); }}>START / RESTART</button>
             <button onClick={() => setSettingsOpen(true)}>SETTINGS</button>
+            <button onClick={() => setRankingOpen(true)}>RANKING</button>
             <div className="progress">{progress}</div>
           </footer>
         )}
@@ -2500,6 +2534,11 @@ export default function App(): JSX.Element {
           <button onClick={() => setSettingsOpen(false)}>CLOSE</button>
         </div>
       </div>
+
+      {/* ローカルランキング画面 */}
+      {rankingOpen && (
+        <RankingScreen scores={scores} onClose={() => setRankingOpen(false)} />
+      )}
     </>
   );
 }

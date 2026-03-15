@@ -1075,3 +1075,226 @@ select {
     font-size: 0.85rem;
   }
 }
+
+/* ===== Result overlay additions ===== */
+.result-new-best {
+  color: var(--perfect);
+  font-size: 1.1rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  margin: 4px 0;
+  animation: newBestPulse 1s ease-in-out infinite alternate;
+}
+
+@keyframes newBestPulse {
+  from { opacity: 0.75; transform: scale(0.97); }
+  to   { opacity: 1;    transform: scale(1.03); }
+}
+
+.result-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.result-ranking-btn {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 10px 18px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+
+.result-ranking-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* ===== Ranking Screen ===== */
+.ranking-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  padding: 16px;
+}
+
+.ranking-card {
+  background: linear-gradient(160deg, rgba(14, 22, 45, 0.97), rgba(22, 18, 48, 0.97));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 18px;
+  padding: 20px 24px;
+  max-width: min(740px, 96vw);
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  color: var(--text);
+}
+
+.ranking-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.ranking-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  margin: 0;
+  color: var(--perfect);
+}
+
+.ranking-close {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 50%;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  color: var(--text);
+  font-size: 0.9rem;
+  padding: 0;
+}
+
+.ranking-song-select {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.ranking-label {
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+}
+
+.ranking-select {
+  flex: 1;
+  min-width: 180px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: var(--text);
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
+.ranking-song-info {
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin: 0 0 12px;
+}
+
+.ranking-empty {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.88rem;
+  text-align: center;
+  padding: 20px 0;
+}
+
+.ranking-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.ranking-table th {
+  text-align: left;
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 600;
+  font-size: 0.72rem;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.ranking-table td {
+  padding: 7px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  vertical-align: middle;
+}
+
+.ranking-row-best td {
+  background: rgba(255, 225, 100, 0.06);
+}
+
+.ranking-cell-rank {
+  font-size: 1rem;
+  text-align: center;
+  width: 32px;
+}
+
+.ranking-cell-score {
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: var(--perfect);
+}
+
+.ranking-rank-badge {
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+
+.ranking-rank-badge.rank-S { color: #ffe175; }
+.ranking-rank-badge.rank-A { color: #57f0da; }
+.ranking-rank-badge.rank-B { color: #63ff9d; }
+.ranking-rank-badge.rank-C { color: #75e3ff; }
+.ranking-rank-badge.rank-D { color: #aaa; }
+
+.ranking-judges {
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.judge-p { color: var(--perfect); }
+.judge-g { color: var(--great); }
+.judge-go { color: var(--good); }
+.judge-m { color: var(--miss); }
+
+.ranking-date {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.45);
+  white-space: nowrap;
+}
+
+.ranking-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.ranking-btn-clear {
+  background: rgba(255, 100, 100, 0.15);
+  border: 1px solid rgba(255, 100, 100, 0.35);
+  color: #ff9090;
+  border-radius: 8px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 0.82rem;
+}
+
+.ranking-btn-clear:hover {
+  background: rgba(255, 100, 100, 0.25);
+}
+
+.ranking-btn-close {
+  padding: 8px 20px;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 0.88rem;
+}
