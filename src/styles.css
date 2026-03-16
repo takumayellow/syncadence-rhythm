@@ -18,13 +18,19 @@
 /* Ensure html fills the viewport for dvh/fill-available to work correctly on mobile */
 html {
   height: 100%;
+  /* iOS Safari: make html fill the true visible area */
   height: -webkit-fill-available;
 }
 
 body {
   margin: 0;
+  /* Fallback for browsers that don't support dvh */
   min-height: 100vh;
+  /* Modern browsers: use dynamic viewport height (excludes browser chrome) */
   min-height: 100dvh;
+  /* iOS Safari fallback: -webkit-fill-available must come last to override 100dvh
+     on Safari versions that have the 100vh/dvh bug */
+  min-height: -webkit-fill-available;
   font-family: "Zen Kaku Gothic New", sans-serif;
   color: var(--text);
   background:
@@ -333,10 +339,11 @@ body[data-ui-mode="mobile"] {
   display: flex;
   flex-direction: column;
   width: 100vw;
+  /* Layered fallbacks: 100vh base → 100dvh (excludes browser chrome) →
+     -webkit-fill-available last so iOS Safari picks the correct visible height */
+  height: 100vh;
   height: 100dvh;
-  /* Fallback for browsers without dvh support */
   height: -webkit-fill-available;
-  height: 100dvh;
 }
 
 body[data-ui-mode="mobile"] .app {
@@ -348,7 +355,11 @@ body[data-ui-mode="mobile"] .app {
   flex-direction: column;
   overflow: hidden;
   width: 100vw;
+  /* Inherit body height via flex child: fill the body which already uses
+     the correct -webkit-fill-available / dvh height */
+  height: 100vh;
   height: 100dvh;
+  height: -webkit-fill-available;
   max-width: 100vw;
 }
 
@@ -356,13 +367,18 @@ body[data-ui-mode="mobile"] .app {
 @media (orientation: landscape) {
   body[data-ui-mode="mobile"] {
     width: 100vw;
+    /* Use svh (small viewport height) in landscape to exclude browser chrome;
+       fall back to dvh then -webkit-fill-available for iOS Safari */
+    height: 100vh;
     height: 100dvh;
-    /* Ensure no browser UI shrinks the viewport on landscape mobile */
-    min-height: -webkit-fill-available;
+    height: -webkit-fill-available;
+    min-height: 0;
   }
   body[data-ui-mode="mobile"] .app {
     width: 100vw;
+    height: 100vh;
     height: 100dvh;
+    height: -webkit-fill-available;
     min-height: 0;
   }
 }
