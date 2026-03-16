@@ -8,7 +8,7 @@
 ## デモ
 
 > **ライブデモ**: GitHub Pages にデプロイ済みです。
-> `https://takumayellow.github.io/syncadence-rhythm/`
+> **[→ ゲームを遊ぶ](https://takumayellow.github.io/syncadence-rhythm/)**
 
 ---
 
