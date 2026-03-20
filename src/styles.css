@@ -471,12 +471,19 @@ body[data-ui-mode="mobile"] .playfield-wrap {
   flex: 1 1 0;
   min-height: 0;
   width: 100%;
-  display: block;
+  /* Use flex container so .playfield can fill reliably via flex:1.
+     height:100% on a block child of a flex item is unreliable in many
+     mobile browsers (Android Chrome, iOS Safari) — flex:1 is the safe fix. */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 body[data-ui-mode="mobile"] .playfield {
   width: 100% !important;
-  height: 100% !important;
+  /* flex:1 fills the flex-column .playfield-wrap reliably on all mobile browsers */
+  flex: 1 1 0 !important;
+  min-height: 0 !important;
   max-height: none !important;
   border-width: 1px;
   border-radius: 0;
