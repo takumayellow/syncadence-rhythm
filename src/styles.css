@@ -334,52 +334,23 @@ body[data-ui-mode="mobile"] {
   overflow: hidden;
   padding: 0;
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  width: 100vw;
-  /* visualViewport 経由で設定される実ピクセル高さを使用（iOS Safari / Android Chrome のvhバグ回避） */
-  height: 100vh;
-  height: 100dvh;
-  height: -webkit-fill-available;
-  height: var(--device-h, 100dvh);
 }
 
 body[data-ui-mode="mobile"] .app {
+  /* position:fixed anchors to all 4 viewport edges — no height calculation needed */
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   padding: 0;
   margin: 0;
-  margin-top: 0;
   gap: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   width: 100vw;
-  /* Inherit body height via flex child: fill the body which already uses
-     the correct -webkit-fill-available / dvh height */
-  height: 100vh;
-  height: 100dvh;
-  height: -webkit-fill-available;
-  height: var(--device-h, 100dvh);
   max-width: 100vw;
-}
-
-/* 端末が既に横向きの場合: .app に position:fixed を当てて確実に全画面表示
-   body に position:fixed を当てると Android/iOS でタッチ座標がズレる問題があるため
-   body はそのままにし、.app 側を fixed にする。
-   .app が固定要素になるので position:absolute な子（オーバーレイ等）の基点にもなる。 */
-@media (orientation: landscape) {
-  body[data-ui-mode="mobile"] {
-    overflow: hidden;
-    height: 100vh;
-    height: 100dvh;
-  }
-  body[data-ui-mode="mobile"] .app {
-    position: fixed;
-    inset: 0; /* anchor to all 4 viewport edges */
-    width: 100vw;
-    height: auto !important; /* reset height so inset bottom:0 controls sizing, not --device-h */
-    min-height: 0;
-    overflow: hidden;
-  }
 }
 
 /* 回転促しメッセージ：デフォルト非表示 */
@@ -470,9 +441,6 @@ body[data-ui-mode="mobile"] .playfield-wrap {
   flex: 1 1 0;
   min-height: 0;
   width: 100%;
-  /* Use flex container so .playfield can fill reliably via flex:1.
-     height:100% on a block child of a flex item is unreliable in many
-     mobile browsers (Android Chrome, iOS Safari) — flex:1 is the safe fix. */
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -480,10 +448,8 @@ body[data-ui-mode="mobile"] .playfield-wrap {
 
 body[data-ui-mode="mobile"] .playfield {
   width: 100% !important;
-  /* Reset any explicit height from responsive media queries so flex controls sizing */
-  height: auto !important;
-  /* flex:1 fills the flex-column .playfield-wrap reliably on all mobile browsers */
   flex: 1 1 0 !important;
+  height: auto !important;
   min-height: 0 !important;
   max-height: none !important;
   border-width: 1px;
