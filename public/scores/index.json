@@ -557,5 +557,45 @@
     "bpm": 100,
     "lengthSec": 108,
     "category": "洋楽"
+  },
+  {
+    "id": "mutanity-chiyozono",
+    "title": "みゅ〜たにてぃ",
+    "artist": "千代園るる / りむる",
+    "audioUrl": "/scores/songs/mutanity-chiyozono/audio.wav",
+    "offsetMs": 0,
+    "bpm": 125,
+    "lengthSec": 218,
+    "category": "ボカロ"
+  },
+  {
+    "id": "suishitai-chiyozono",
+    "title": "わたしは水死体",
+    "artist": "千代園るる / ナースロボ＿タイプT",
+    "audioUrl": "/scores/songs/suishitai-chiyozono/audio.wav",
+    "offsetMs": 0,
+    "bpm": 125,
+    "lengthSec": 172,
+    "category": "ボカロ"
+  },
+  {
+    "id": "fumei-na-world-chiyozono",
+    "title": "不明なわーるど",
+    "artist": "千代園るる / LeuR",
+    "audioUrl": "/scores/songs/fumei-na-world-chiyozono/audio.wav",
+    "offsetMs": 0,
+    "bpm": 125,
+    "lengthSec": 177,
+    "category": "ボカロ"
+  },
+  {
+    "id": "genjitsu-tohikou-chiyozono",
+    "title": "げんじつとーひこう！",
+    "artist": "千代園るる / 重音テト, 足立レイ",
+    "audioUrl": "/scores/songs/genjitsu-tohikou-chiyozono/audio.wav",
+    "offsetMs": 0,
+    "bpm": 130,
+    "lengthSec": 218,
+    "category": "ボカロ"
   }
 ]
