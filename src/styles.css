@@ -374,12 +374,8 @@ body[data-ui-mode="mobile"] .app {
   }
   body[data-ui-mode="mobile"] .app {
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    height: 100dvh;
-    height: var(--device-h, 100dvh);
+    inset: 0; /* fill entire viewport — avoids --device-h rounding/timing gaps */
+    width: 100vw; /* belt-and-suspenders for older Safari */
     min-height: 0;
     overflow: hidden;
   }
