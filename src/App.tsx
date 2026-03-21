@@ -755,23 +755,7 @@ export default function App(): JSX.Element {
     };
   }, [uiMode]);
 
-  // --device-h CSS変数を visualViewport の実際の高さで更新する（iOS Safari の100vh/dvhバグ回避）
-  useEffect(() => {
-    const setDeviceH = () => {
-      const h = window.visualViewport?.height ?? window.innerHeight;
-      document.documentElement.style.setProperty("--device-h", `${h}px`);
-    };
-    setDeviceH();
-    window.visualViewport?.addEventListener("resize", setDeviceH);
-    window.addEventListener("resize", setDeviceH);
-    const onOrientationChange = () => setTimeout(setDeviceH, 150);
-    window.addEventListener("orientationchange", onOrientationChange);
-    return () => {
-      window.visualViewport?.removeEventListener("resize", setDeviceH);
-      window.removeEventListener("resize", setDeviceH);
-      window.removeEventListener("orientationchange", onOrientationChange);
-    };
-  }, []);
+
 
   // モバイルエントリータップで全画面＋横画面ロックを発動する．
   const handleMobileEntry = async () => {
