@@ -557,5 +557,49 @@
     "bpm": 100,
     "lengthSec": 108,
     "category": "洋楽"
+  },
+  {
+    "id": "mutanity-chiyozono",
+    "title": "みゅ〜たにてぃ",
+    "artist": "千代園るる (feat. りむる)",
+    "audioUrl": "/scores/songs/mutanity-chiyozono/audio.ogg",
+    "xmlPath": "/scores/songs/mutanity-chiyozono/score.musicxml",
+    "offsetMs": 0,
+    "bpm": 158,
+    "lengthSec": 180,
+    "category": "オリジナル"
+  },
+  {
+    "id": "watashi-wa-suishitai",
+    "title": "わたしは水死体",
+    "artist": "千代園るる (feat. ナースロボ＿タイプT)",
+    "audioUrl": "/scores/songs/watashi-wa-suishitai/audio.ogg",
+    "xmlPath": "/scores/songs/watashi-wa-suishitai/score.musicxml",
+    "offsetMs": 0,
+    "bpm": 138,
+    "lengthSec": 180,
+    "category": "オリジナル"
+  },
+  {
+    "id": "fumei-na-world",
+    "title": "不明なわーるど",
+    "artist": "千代園るる (feat. LeuR)",
+    "audioUrl": "/scores/songs/fumei-na-world/audio.ogg",
+    "xmlPath": "/scores/songs/fumei-na-world/score.musicxml",
+    "offsetMs": 0,
+    "bpm": 132,
+    "lengthSec": 170,
+    "category": "オリジナル"
+  },
+  {
+    "id": "genjitsu-tohi",
+    "title": "げんじつとーひこう！",
+    "artist": "千代園るる (feat. 重音テト, 足立レイ)",
+    "audioUrl": "/scores/songs/genjitsu-tohi/audio.ogg",
+    "xmlPath": "/scores/songs/genjitsu-tohi/score.musicxml",
+    "offsetMs": 0,
+    "bpm": 162,
+    "lengthSec": 200,
+    "category": "オリジナル"
   }
 ]
