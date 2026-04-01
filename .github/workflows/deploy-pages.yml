@@ -1,11 +1,10 @@
-name: Deploy Mobile Build to GitHub Pages
+name: Deploy to GitHub Pages
 
 on:
   push:
     branches:
       - main
-      - feature/chart-sync-refine
-      - feature/mobile-layout
+      - public
   workflow_dispatch:
 
 permissions:
