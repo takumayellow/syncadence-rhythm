@@ -26,45 +26,6 @@
     "source": "Wikimedia Commons (CC/PD)"
   },
   {
-    "id": "moonlight-sonata-beethoven",
-    "title": "月光ソナタ 第1楽章",
-    "artist": "L.v.ベートーヴェン",
-    "audioUrl": "/scores/songs/moonlight-sonata-beethoven/audio.ogg",
-    "mxlPath": "/scores/songs/moonlight-sonata-beethoven/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 44,
-    "lengthSec": 337,
-    "category": "クラシック",
-    "source": "Wikimedia Commons (CC/PD)"
-  },
-  {
-    "id": "la-campanella-liszt",
-    "title": "ラ・カンパネラ",
-    "artist": "フランツ・リスト",
-    "audioUrl": "/scores/songs/la-campanella-liszt/audio.ogg",
-    "mxlPath": "/scores/songs/la-campanella-liszt/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 97,
-    "lengthSec": 278,
-    "category": "クラシック",
-    "source": "Wikimedia Commons (CC/PD)"
-  },
-  {
-    "id": "hungarian-dance-brahms",
-    "title": "ハンガリー舞曲 第5番",
-    "artist": "ヨハネス・ブラームス",
-    "audioUrl": "/scores/songs/hungarian-dance-brahms/audio.ogg",
-    "mxlPath": "/scores/songs/hungarian-dance-brahms/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 130,
-    "lengthSec": 228,
-    "category": "クラシック",
-    "source": "Wikimedia Commons (CC/PD)"
-  },
-  {
     "id": "minute-waltz-chopin",
     "title": "ワルツ 作品64-2 嬰ハ短調",
     "artist": "フレデリック・ショパン",
