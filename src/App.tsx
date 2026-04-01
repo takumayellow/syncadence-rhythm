@@ -1996,18 +1996,18 @@ export default function App(): JSX.Element {
 
   // レーンを短時間ハイライトして入力フィードバックを出す．
   function flashLane(idx: number): void {
-    laneVisualRefs.current.forEach((el, i) => {
-      if (!el) return;
-      if (i !== idx) el.classList.remove("active");
-    });
     const target = laneVisualRefs.current[idx];
     if (!target) return;
     const rt = runtimeRef.current;
     rt.laneFlashTokens[idx] += 1;
     const token = rt.laneFlashTokens[idx];
-    target.classList.add("active");
+    target.style.fill = "rgba(255, 255, 255, 0.48)";
+    target.style.opacity = "0.9";
     window.setTimeout(() => {
-      if (runtimeRef.current.laneFlashTokens[idx] === token) target.classList.remove("active");
+      if (runtimeRef.current.laneFlashTokens[idx] === token) {
+        target.style.fill = "";
+        target.style.opacity = "";
+      }
     }, 80);
   }
 
