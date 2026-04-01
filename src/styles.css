@@ -112,8 +112,8 @@ body {
 
 .playfield {
   position: relative;
-  width: min(700px, 96vw);
-  height: min(68vh, 680px);
+  width: min(900px, 96vw);
+  height: min(85vh, 900px);
   border: 2px solid var(--lane-border);
   border-radius: 16px;
   overflow: hidden;
