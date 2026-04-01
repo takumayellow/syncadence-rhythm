@@ -1365,6 +1365,7 @@ export default function App(): JSX.Element {
         const d = rt.audio.duration;
         if (Number.isFinite(d) && d > 0) {
           rt.mediaDurationMs = d * 1000;
+          rt.chartEndMs = Math.max(0, d * 1000 - 8);
           if (!rt.gameRunning) rebuildChartForCurrentTime();
         }
       };
@@ -1792,6 +1793,8 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     const pf = playfieldRef.current;
     if (!pf) return;
+    // 音源開始待ち中はノーツを描画しない
+    if (rt.awaitingAudioStart) return;
     // 判定ラインYは「下端からのオフセット」で管理．
     const judgeLineY = pf.clientHeight - settingsRef.current.judgeLineOffsetPx;
     const approachMs = BASE_APPROACH_MS * (10 / settingsRef.current.noteSpeed);
@@ -2095,7 +2098,9 @@ export default function App(): JSX.Element {
       setProgress(`Playing ${sec.toFixed(1)}s / ${chartSec.toFixed(1)}s`);
       rt.lastProgressUpdateMs = rawMs;
     }
-    if (rawMs >= rt.chartEndMs) {
+    // 譜面の最後のノーツが全て判定済みか、chartEndMs を超えたら終了
+    const allJudged = rt.chart.length > 0 && rt.chart.every((n) => n.judged);
+    if (rawMs >= rt.chartEndMs || (allJudged && rawMs > 3000)) {
       stopGame();
       return;
     }
