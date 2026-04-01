@@ -1455,7 +1455,7 @@ export default function App(): JSX.Element {
       settingsRef.current.timingOffsetMs = next;
       rt.liveOffsetPendingMs -= stepOff;
       if (rawMs - rt.liveAdjustLastUiMs >= 180) {
-        setTimingOffsetMs(Math.round(next));
+        // settingsRef は既に更新済みなので UI state 更新はゲーム終了時に行う（再描画抑制）
         persistTuneForSong(Math.round(next), settingsRef.current.chartTempoBpm);
         rt.liveAdjustLastUiMs = rawMs;
       }
@@ -2033,6 +2033,8 @@ export default function App(): JSX.Element {
     rt.audio?.pause();
     stopSynthBgm();
     persistTuneForSong(Math.round(settingsRef.current.timingOffsetMs), settingsRef.current.chartTempoBpm);
+    // ゲーム中に抑制していたUI stateをここで同期
+    setTimingOffsetMs(Math.round(settingsRef.current.timingOffsetMs));
     setProgress("Finished");
     const acc = rt.possiblePoints > 0 ? (rt.achievedPoints / rt.possiblePoints) * 100 : 0;
     const clear = acc >= 72 && rt.missCount < Math.max(30, Math.floor(rt.chart.length * 0.22));
