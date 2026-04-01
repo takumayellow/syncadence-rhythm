@@ -128,8 +128,7 @@ body {
     );
   perspective: 1200px;
   /* GPU layer pinning to prevent recomposite on touch */
-  will-change: transform;
-  transform: translateZ(0);
+  contain: layout style paint;
   -webkit-backface-visibility: hidden;
   backface-visibility: hidden;
 }
@@ -449,7 +448,7 @@ body[data-ui-mode="mobile"] .playfield-wrap {
 body[data-ui-mode="mobile"] .playfield {
   width: 100% !important;
   flex: 1 1 0 !important;
-  height: auto !important;
+  height: 0 !important;
   min-height: 0 !important;
   max-height: none !important;
   border-width: 1px;
