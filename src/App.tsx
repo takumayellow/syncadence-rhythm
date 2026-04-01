@@ -287,13 +287,24 @@ function removeOverlapsWithLongNotes(notes: PlayNote[]): PlayNote[] {
 
 // 譜面全体を曲長に合わせてスケーリング＋クランプし，先頭リードインも確保する．
 // スコアが音源より長い場合は比例縮小して全ノーツを収める．
-function fitChartToSongDuration(chart: PlayNote[], _mediaDurationMs: number): PlayNote[] {
-  // MusicXML の timeMs は譜面内テンポに基づく絶対時刻を持つ．
-  // 音源とテンポ/長さが異なる場合にスケーリングするとかえってタイミングが
-  // 崩れるため，譜面の時刻をそのまま信頼する．
-  // 音源との開始位置ズレは offsetMs（rebuildChartForCurrentTime で加算）で調整する．
-  if (!chart.length) return chart;
-  return [...chart].sort((a, b) => a.hitTime - b.hitTime);
+function fitChartToSongDuration(chart: PlayNote[], mediaDurationMs: number): PlayNote[] {
+  if (!chart.length || mediaDurationMs <= 0) return chart;
+  const sorted = [...chart].sort((a, b) => a.hitTime - b.hitTime);
+  const chartFirst = sorted[0].hitTime;
+  const chartLast = Math.max(...sorted.map((n) => Math.max(n.hitTime, n.holdEndTime)));
+  const chartSpan = chartLast - chartFirst;
+  if (chartSpan <= 0) return sorted;
+  // 譜面と音源の長さが5%以上異なる場合、比例スケーリングで合わせる
+  const leadInMs = 1200; // 最初のノーツ前の余白
+  const tailMs = 500;    // 曲末尾の余白
+  const targetSpan = Math.max(1000, mediaDurationMs - leadInMs - tailMs);
+  const ratio = targetSpan / chartSpan;
+  if (Math.abs(ratio - 1.0) < 0.05) return sorted; // 5%未満のずれは無視
+  return sorted.map((n) => ({
+    ...n,
+    hitTime: Math.round(leadInMs + (n.hitTime - chartFirst) * ratio),
+    holdEndTime: Math.round(leadInMs + (n.holdEndTime - chartFirst) * ratio),
+  }));
 }
 
 // 譜面がスカスカかどうかを，ノーツ数・時間カバー率・密度で判定する．
