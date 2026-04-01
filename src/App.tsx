@@ -719,11 +719,21 @@ export default function App(): JSX.Element {
   const [tapTimes, setTapTimes] = useState<number[]>([]);
   const [xmlImportState, setXmlImportState] = useState("no score");
   const [countdownText, setCountdownText] = useState("");
-  const [hitFeedback, setHitFeedback] = useState<{ text: string; className: string; visible: boolean }>({
+  const hitFeedbackRef = useRef<{ text: string; className: string; visible: boolean }>({
     text: "",
     className: "judge-perfect",
     visible: false,
   });
+  const hitFeedbackElRef = useRef<HTMLDivElement | null>(null);
+  function setHitFeedback(v: { text: string; className: string; visible: boolean } | ((prev: { text: string; className: string; visible: boolean }) => { text: string; className: string; visible: boolean })) {
+    const newVal = typeof v === "function" ? v(hitFeedbackRef.current) : v;
+    hitFeedbackRef.current = newVal;
+    const el = hitFeedbackElRef.current;
+    if (el) {
+      el.textContent = newVal.text;
+      el.className = `hit-feedback ${newVal.visible ? "" : "hidden"} ${newVal.className}`;
+    }
+  }
   const [result, setResult] = useState<{show:boolean;state:string;rank:string;acc:string;score:string;isNewBest:boolean}>({
     show:false,state:"CLEAR!",rank:"RANK A",acc:"0.0%",score:"0",isNewBest:false
   });
@@ -2375,9 +2385,7 @@ export default function App(): JSX.Element {
             </div>
             {/* ノーツDOMを imperative に配置する専用レイヤー． */}
             {/* ノーツは track SVG 内に polygon として描画 */}
-            <div className={`hit-feedback ${hitFeedback.visible ? "" : "hidden"} ${hitFeedback.className}`}>
-              {hitFeedback.text}
-            </div>
+            <div ref={hitFeedbackElRef} className={`hit-feedback hidden judge-perfect`}></div>
             {/* クリア/失敗の結果表示オーバーレイ． */}
             <div className={`result-overlay ${result.show ? "" : "hidden"}`} aria-hidden={!result.show}>
               <div className="result-card">
