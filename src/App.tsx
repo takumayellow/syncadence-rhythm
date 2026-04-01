@@ -5,7 +5,7 @@ import { extractMusicXmlFromMxl } from "./mxl";
 import type { Judge, PlayNote, ScoreEvent, ScoreMeta, SongCategory } from "./types";
 import { SONG_CATEGORIES } from "./types";
 import { saveResult, getRanking } from "./ranking";
-import { RankingScreen } from "./RankingScreen";
+import { RankingScreen, submitScore } from "./RankingScreen";
 
 const LANE_COUNT = 4;
 const HIT_KEYS = ["KeyD", "KeyF", "KeyJ", "KeyK"];
@@ -2082,6 +2082,10 @@ export default function App(): JSX.Element {
       date: new Date().toISOString(),
     });
     setResult({ show: true, state: clear ? "CLEAR!" : "FAILED", rank: rankLabel, acc: `${acc.toFixed(1)}%`, score: `${rt.score}`, isNewBest });
+    // 全体ランキングにスコア送信
+    if (isNewBest) {
+      submitScore(selectedScore.id, rt.score, acc, rankLabel);
+    }
   }
 
   // requestAnimationFrame のメインループ．
