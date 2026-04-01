@@ -1310,9 +1310,19 @@ export default function App(): JSX.Element {
         holdEndTime: n.holdEndTime + songOffset,
       }));
     }
+    // 曲の長さを超えるノーツを除去（末尾500ms余白を確保）
+    const cutoffMs = Math.max(0, rt.mediaDurationMs - 500);
+    chart = chart.filter((n) => n.hitTime <= cutoffMs);
+    // ロングノーツの末尾も曲内に収める
+    chart = chart.map((n) => {
+      if (n.holdEndTime > cutoffMs) {
+        return { ...n, holdEndTime: cutoffMs, durationMs: Math.max(0, cutoffMs - n.hitTime) };
+      }
+      return n;
+    });
     rt.chart = removeOverlapsWithLongNotes(chart);
     rt.sweepIndex = 0;
-    rt.chartEndMs = Math.max(0, rt.mediaDurationMs - 8);
+    rt.chartEndMs = Math.max(0, rt.mediaDurationMs);
     // 達成率計算用の理論満点（ロングは頭+尻を想定して高め）．
     rt.possiblePoints = rt.chart.reduce((s, n) => s + (n.durationMs > 0 ? 2200 : 1000), 0);
     // SVG ノーツ要素をクリア
