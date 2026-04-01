@@ -688,12 +688,20 @@ export default function App(): JSX.Element {
     [scores]
   );
 
-  // UI 表示用 state（変更時に再描画される）．
-  const [score, setScore] = useState(0);
+  // UI 表示用（ゲームループ中の高頻度更新はDOM直接操作で再描画を回避）．
+  const scoreRef = useRef(0);
+  const comboRef = useRef(0);
+  const judgeRef = useRef("-");
+  const progressRef = useRef("Ready");
+  const scoreElRef = useRef<HTMLSpanElement[]>([]);
+  const comboElRef = useRef<HTMLSpanElement[]>([]);
+  const judgeElRef = useRef<HTMLSpanElement[]>([]);
+  const progressElRef = useRef<HTMLSpanElement[]>([]);
+  function setScore(v: number) { scoreRef.current = v; scoreElRef.current.forEach(el => { if (el) el.textContent = String(v); }); }
+  function setCombo(v: number) { comboRef.current = v; comboElRef.current.forEach(el => { if (el) el.textContent = String(v); }); }
+  function setJudge(v: string) { judgeRef.current = v; judgeElRef.current.forEach(el => { if (el) el.textContent = v; }); }
+  function setProgress(v: string) { progressRef.current = v; progressElRef.current.forEach(el => { if (el) el.textContent = v; }); }
   const [uiMode, setUiMode] = useState<"auto" | "mobile" | "desktop">("auto");
-  const [combo, setCombo] = useState(0);
-  const [judge, setJudge] = useState("-");
-  const [progress, setProgress] = useState("Ready");
   const [songTitle, setSongTitle] = useState("Loading...");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
@@ -2282,9 +2290,9 @@ export default function App(): JSX.Element {
               <p className="keyboard-hint">キー: D / F / J / K，またはレーンをタップ</p>
             </div>
             <div className="status">
-              <div><span className="label">Score</span><span>{score}</span></div>
-              <div><span className="label">Combo</span><span>{combo}</span></div>
-              <div><span className="label">Judge</span><span>{judge}</span></div>
+              <div><span className="label">Score</span><span ref={el => { if (el) scoreElRef.current[0] = el; }}>{scoreRef.current}</span></div>
+              <div><span className="label">Combo</span><span ref={el => { if (el) comboElRef.current[0] = el; }}>{comboRef.current}</span></div>
+              <div><span className="label">Judge</span><span ref={el => { if (el) judgeElRef.current[0] = el; }}>{judgeRef.current}</span></div>
               <div><span className="label">Song</span><span>{songTitle}</span></div>
               <div>
                 <span className="label">BGM</span>
@@ -2395,7 +2403,7 @@ export default function App(): JSX.Element {
             <button className="primary" onClick={() => { resetGame(); startGame(); }}>START / RESTART</button>
             <button onClick={() => setSettingsOpen(true)}>SETTINGS</button>
             <button onClick={() => setRankingOpen(true)}>RANKING</button>
-            <div className="progress">{progress}</div>
+            <div className="progress"><span ref={el => { if (el) progressElRef.current[0] = el; }}>{progressRef.current}</span></div>
           </footer>
         )}
       </main>
@@ -2409,11 +2417,11 @@ export default function App(): JSX.Element {
           <label>現在情報</label>
           <div className="speed-row">
             <span>Score / Combo</span>
-            <span>{score} / {combo}</span>
+            <span><span ref={el => { if (el) scoreElRef.current[1] = el; }}>{scoreRef.current}</span> / <span ref={el => { if (el) comboElRef.current[1] = el; }}>{comboRef.current}</span></span>
           </div>
           <div className="speed-row">
             <span>Judge</span>
-            <span>{judge}</span>
+            <span ref={el => { if (el) judgeElRef.current[1] = el; }}>{judgeRef.current}</span>
           </div>
           <div className="speed-row">
             <span>Song</span>
@@ -2425,7 +2433,7 @@ export default function App(): JSX.Element {
           </div>
           <div className="speed-row">
             <span>Status</span>
-            <span>{progress}</span>
+            <span ref={el => { if (el) progressElRef.current[1] = el; }}>{progressRef.current}</span>
           </div>
           <div className="speed-row">
             <span>Audio Error</span>
