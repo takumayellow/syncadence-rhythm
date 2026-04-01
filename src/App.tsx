@@ -2330,12 +2330,6 @@ export default function App(): JSX.Element {
 
         <section className="playfield-wrap">
           <div className="playfield" id="playfield" ref={playfieldRef}>
-            {/* DEBUG: layout inspector - remove after fixing */}
-            {isMobileUi && (
-              <div style={{position:"absolute",top:2,left:2,zIndex:9999,background:"rgba(0,0,0,0.8)",color:"#0f0",fontSize:10,padding:2,pointerEvents:"none",fontFamily:"monospace",whiteSpace:"pre"}}>
-                {`vp:${window.innerWidth}x${window.innerHeight} vis:${Math.round(window.visualViewport?.width??0)}x${Math.round(window.visualViewport?.height??0)}\npf:${pfSize.w}x${pfSize.h} app:${document.querySelector('.app')?.clientWidth??'?'}x${document.querySelector('.app')?.clientHeight??'?'}\nwrap:${document.querySelector('.playfield-wrap')?.clientWidth??'?'}x${document.querySelector('.playfield-wrap')?.clientHeight??'?'}\njudge:${judgeLineOffsetPx} mode:${uiMode} fs:${!!document.fullscreenElement}`}
-              </div>
-            )}
             {!isMobileUi && (
               <div className="mobile-song-chip" aria-hidden="true">{selectedScore.title}</div>
             )}
