@@ -147,7 +147,6 @@ body {
 
 .lane-fill {
   opacity: 0.32;
-  transition: fill 80ms ease, opacity 80ms ease;
 }
 
 .lane-fill-1,
@@ -170,10 +169,6 @@ body {
   stroke-width: 1.6;
 }
 
-.lane-fill.active {
-  fill: rgba(255, 255, 255, 0.48);
-  opacity: 0.9;
-}
 
 .track-grid {
   position: absolute;
@@ -219,17 +214,14 @@ body {
   border: none;
   background: transparent;
   cursor: pointer;
-  transition: background 80ms ease;
   appearance: none;
   -webkit-appearance: none;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   outline: none;
   touch-action: none;
-}
-
-.lane:active,
-.lane.active {
-  background: transparent;
 }
 
 .judge-line {
