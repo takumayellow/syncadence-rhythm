@@ -127,6 +127,11 @@ body {
       transparent 16px
     );
   perspective: 1200px;
+  /* GPU layer pinning to prevent recomposite on touch */
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .track-bg {
@@ -136,6 +141,8 @@ body {
   /* clip-path は JS から inline style で設定 */
   background:
     linear-gradient(180deg, rgba(161, 224, 255, 0.12), rgba(32, 39, 94, 0.28) 35%, rgba(10, 14, 30, 0.44));
+  will-change: clip-path;
+  transform: translateZ(0);
 }
 
 .track-perspective {
@@ -208,6 +215,7 @@ body {
   grid-template-columns: repeat(4, 1fr);
   /* clip-path は JS から inline style で設定 */
   z-index: 3;
+  transform: translateZ(0);
 }
 
 .lane {
