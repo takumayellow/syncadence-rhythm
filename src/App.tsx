@@ -1371,7 +1371,7 @@ export default function App(): JSX.Element {
       rt.audio.setAttribute("playsinline", "true");
       rt.audio.crossOrigin = "anonymous";
       // 実メディア長が読めたら譜面末尾を再フィットする．
-      rt.audio.onloadedmetadata = () => {
+      const updateDuration = () => {
         if (!rt.audio) return;
         const d = rt.audio.duration;
         if (Number.isFinite(d) && d > 0) {
@@ -1379,6 +1379,12 @@ export default function App(): JSX.Element {
           rt.chartEndMs = Math.max(0, d * 1000 - 8);
           if (!rt.gameRunning) rebuildChartForCurrentTime();
         }
+      };
+      rt.audio.onloadedmetadata = updateDuration;
+      rt.audio.ondurationchange = updateDuration;
+      // 音源の再生が終わったら確実にゲームを停止する
+      rt.audio.onended = () => {
+        if (rt.gameRunning) stopGame();
       };
       rt.audio.onerror = () => {
         rt.lastAudioError = "audio load error";
@@ -2109,9 +2115,10 @@ export default function App(): JSX.Element {
       setProgress(`Playing ${sec.toFixed(1)}s / ${chartSec.toFixed(1)}s`);
       rt.lastProgressUpdateMs = rawMs;
     }
-    // 譜面の最後のノーツが全て判定済みか、chartEndMs を超えたら終了
+    // 終了条件: chartEndMs超過 / 全ノーツ判定済み+2秒 / 最後のノーツから5秒経過
     const allJudged = rt.chart.length > 0 && rt.chart.every((n) => n.judged);
-    if (rawMs >= rt.chartEndMs || (allJudged && rawMs > 3000)) {
+    const lastNoteTime = rt.chart.length > 0 ? Math.max(...rt.chart.map((n) => Math.max(n.hitTime, n.holdEndTime))) : 0;
+    if (rawMs >= rt.chartEndMs || (allJudged && rawMs > lastNoteTime + 2000) || rawMs > lastNoteTime + 5000) {
       stopGame();
       return;
     }
