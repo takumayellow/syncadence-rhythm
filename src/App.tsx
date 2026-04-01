@@ -759,10 +759,9 @@ export default function App(): JSX.Element {
       setUiMode("desktop");
       return;
     }
-    // auto: タッチ対応＋画面が小さい場合はモバイル扱い
+    // auto: タッチ対応デバイスはモバイル扱い
     const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
-    const isSmallScreen = Math.min(window.innerWidth, window.innerHeight) < 768;
-    setUiMode(isTouchDevice && isSmallScreen ? "mobile" : "desktop");
+    setUiMode(isTouchDevice ? "mobile" : "desktop");
   }, []);
 
   // body 属性に UI モードを反映して CSS 分岐に使う．
