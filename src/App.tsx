@@ -2418,6 +2418,7 @@ export default function App(): JSX.Element {
                   onPointerDown={() => onLanePointerDown(i)}
                   onPointerUp={() => { runtimeRef.current.lanePressed[i] = false; }}
                   onPointerLeave={() => { runtimeRef.current.lanePressed[i] = false; }}
+                  onPointerCancel={() => { runtimeRef.current.lanePressed[i] = false; }}
                 />
               ))}
             </div>
