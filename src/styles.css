@@ -26,9 +26,6 @@ body {
   min-height: 100vh;
   /* Modern browsers: use dynamic viewport height (excludes browser chrome) */
   min-height: 100dvh;
-  /* iOS Safari fallback: -webkit-fill-available must come last to override 100dvh
-     on Safari versions that have the 100vh/dvh bug */
-  min-height: -webkit-fill-available;
   font-family: "Zen Kaku Gothic New", sans-serif;
   color: var(--text);
   background:
@@ -41,6 +38,16 @@ body {
   overscroll-behavior: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* -webkit-fill-available is only needed by browsers without dvh support (old iOS Safari).
+   Gated behind @supports so it can't win the cascade on browsers (e.g. Chrome/Android) that
+   parse the value but don't size it the same way dvh does — that mismatch was cutting the
+   playfield short on Chrome while unaffected engines (LINE in-app browser) looked fine. */
+@supports not (height: 100dvh) {
+  body {
+    min-height: -webkit-fill-available;
+  }
 }
 
 .bg-glow {
@@ -333,9 +340,14 @@ body[data-ui-mode="mobile"] {
   margin: 0;
   height: 100vh;
   height: 100dvh;
-  height: -webkit-fill-available;
   min-height: 0;
   display: block;
+}
+
+@supports not (height: 100dvh) {
+  body[data-ui-mode="mobile"] {
+    height: -webkit-fill-available;
+  }
 }
 
 body[data-ui-mode="mobile"] .app {
