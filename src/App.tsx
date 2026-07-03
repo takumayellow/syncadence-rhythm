@@ -616,6 +616,66 @@ function mergeScoreAndMidi(scoreEvents: ScoreEvent[], midiEvents: ScoreEvent[]):
   return midiEvents;
 }
 
+// 譜面イベントの時間軸を実音源の長さへ一様スケーリングする．
+// 楽譜記載テンポ（無指定時は120BPM既定）と実演奏のテンポは大きく乖離することが
+// 多いため，密度調整・ロング判定など ms 閾値ベースの後段処理より前に
+// 実時間へ正規化しておく必要がある（後段の fitChartToSongDuration だけでは
+// 閾値処理が譜面時間で走ってしまい，間引き・ロング化が実時間と食い違う）．
+// 正規化できない場合（時刻情報が乏しい等）は null を返す．
+const CHART_LEAD_IN_MS = 1200;
+const CHART_TAIL_MS = 500;
+
+type MediaNormalization = {
+  firstMs: number;
+  ratio: number;
+};
+
+function computeMediaNormalization(
+  events: ScoreEvent[],
+  mediaDurationMs: number,
+): MediaNormalization | null {
+  if (!Number.isFinite(mediaDurationMs) || mediaDurationMs <= 0) return null;
+  let firstMs = Number.POSITIVE_INFINITY;
+  let lastMs = Number.NEGATIVE_INFINITY;
+  let timedCount = 0;
+  for (const e of events) {
+    if (!Number.isFinite(e.timeMs)) continue;
+    timedCount += 1;
+    const t = e.timeMs as number;
+    const end = t + (Number.isFinite(e.durationMs) ? (e.durationMs as number) : 0);
+    if (t < firstMs) firstMs = t;
+    if (end > lastMs) lastMs = end;
+  }
+  const span = lastMs - firstMs;
+  if (timedCount < 2 || !(span > 0)) return null;
+  const targetSpan = Math.max(1000, mediaDurationMs - CHART_LEAD_IN_MS - CHART_TAIL_MS);
+  return { firstMs, ratio: targetSpan / span };
+}
+
+function applyMediaNormalization(
+  events: ScoreEvent[],
+  norm: MediaNormalization,
+): ScoreEvent[] {
+  return events.map((e) => {
+    if (!Number.isFinite(e.timeMs)) return e;
+    return {
+      ...e,
+      timeMs: CHART_LEAD_IN_MS + ((e.timeMs as number) - norm.firstMs) * norm.ratio,
+      durationMs: Number.isFinite(e.durationMs)
+        ? (e.durationMs as number) * norm.ratio
+        : e.durationMs,
+    };
+  });
+}
+
+function normalizeEventsToMediaDuration(
+  events: ScoreEvent[],
+  mediaDurationMs: number,
+): ScoreEvent[] | null {
+  const norm = computeMediaNormalization(events, mediaDurationMs);
+  return norm ? applyMediaNormalization(events, norm) : null;
+}
+
 export default function App(): JSX.Element {
   // 実DOM参照（プレイフィールド，ノーツ描画層，レーン演出）．
   const playfieldRef = useRef<HTMLDivElement>(null);
@@ -1240,7 +1300,13 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     stopSynthBgm();
     const source = rt.midiPlaybackEvents.length ? rt.midiPlaybackEvents : getCurrentEvents();
-    const events = source
+    // 譜面と同じ時間軸で鳴らすため，チャート構築と同一の正規化マッピングを適用する．
+    // マッピングはチャートの元イベント（importedEvents）から導出し，synth が
+    // 別のイベント集合（フル MIDI 等）を鳴らす場合でも縮尺が食い違わないようにする．
+    const chartSource =
+      rt.chartSourceMode === "score" && rt.importedEvents.length ? rt.importedEvents : source;
+    const norm = computeMediaNormalization(chartSource, rt.mediaDurationMs);
+    const events = (norm ? applyMediaNormalization(source, norm) : source)
       .filter((e) => Number.isFinite(e.timeMs))
       .sort((a, b) => (a.timeMs as number) - (b.timeMs as number));
     if (!events.length) return;
@@ -1290,11 +1356,25 @@ export default function App(): JSX.Element {
       const autoBpm = estimateBpmForBeatScore(rt.importedEvents, rt.mediaDurationMs);
       if (autoBpm) bpm = autoBpm;
     }
-    let chart = fitChartToSongDuration(eventsToNotes(getCurrentEvents(), bpm, strictMode), rt.mediaDurationMs);
+    // 読み込んだ譜面は密度調整の前に実音源の時間軸へ正規化する．
+    // （正規化済みなら fitChartToSongDuration の再スケーリングは不要で，
+    // 間引きで端のノーツが消えた際の再伸縮による歪みも避けられる．）
+    const rawEvents = getCurrentEvents();
+    const normalizedEvents =
+      rt.chartSourceMode === "score" && rt.importedEvents.length
+        ? normalizeEventsToMediaDuration(rawEvents, rt.mediaDurationMs)
+        : null;
+    let chart = eventsToNotes(normalizedEvents ?? rawEvents, bpm, strictMode);
+    if (!normalizedEvents) {
+      chart = fitChartToSongDuration(chart, rt.mediaDurationMs);
+    }
     // 非 strict かつ疎な譜面は補助ノーツを混ぜる．
     if (!strictMode && isSparseChart(chart, rt.mediaDurationMs)) {
       const support = buildSupportNotes(rt.mediaDurationMs, bpm);
-      chart = fitChartToSongDuration(mergeChartWithSupport(chart, support), rt.mediaDurationMs);
+      chart = mergeChartWithSupport(chart, support);
+      if (!normalizedEvents) {
+        chart = fitChartToSongDuration(chart, rt.mediaDurationMs);
+      }
     }
     if (!strictMode) {
       chart = ensureTailNote(chart, rt.mediaDurationMs);
