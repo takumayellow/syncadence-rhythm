@@ -49,13 +49,76 @@ function divDurationToMs(
   return Math.max(0, endMs - startMs);
 }
 
-export function parseMusicXml(xmlText: string): ScoreEvent[] {
+function parseEndingNumbers(el: Element): number[] {
+  const nums = (el.getAttribute("number") ?? "1")
+    .split(/[\s,]+/)
+    .map(Number)
+    .filter((n) => Number.isFinite(n) && n > 0);
+  return nums.length ? nums : [1];
+}
+
+// リピート記号（|: :| と volta 括弧）を展開し，実演奏どおりの小節列を返す．
+// 実録音はリピートを演奏するのが普通なので，展開しないと譜面が音源より
+// 構造的に短くなり，リピート地点以降のノーツが大きくズレる．
+function expandMeasures(measures: Element[]): Element[] {
+  const seq: Element[] = [];
+  // 各リピート開始位置から後方リピートで戻った回数．volta の何回目かの判定にも使う．
+  const jumped = new Map<number, number>();
+  let i = 0;
+  let repeatStart = 0;
+  const maxOut = measures.length * 8;
+  while (i < measures.length && seq.length < maxOut) {
+    const m = measures[i];
+    if (m.querySelector('barline repeat[direction="forward"]')) repeatStart = i;
+    const currentPass = (jumped.get(repeatStart) ?? 0) + 1;
+    const endingStart = Array.from(m.querySelectorAll("barline ending")).find(
+      (e) => e.getAttribute("type") === "start",
+    );
+    if (endingStart && !parseEndingNumbers(endingStart).includes(currentPass)) {
+      // 今回のパスに該当しない volta 区間を丸ごとスキップする．
+      let j = i;
+      while (j < measures.length) {
+        const stop = Array.from(measures[j].querySelectorAll("barline ending")).find(
+          (e) => e.getAttribute("type") === "stop" || e.getAttribute("type") === "discontinue",
+        );
+        if (stop) break;
+        j += 1;
+      }
+      i = j + 1;
+      continue;
+    }
+    seq.push(m);
+    const backward = m.querySelector('barline repeat[direction="backward"]');
+    if (backward) {
+      const times = Number(backward.getAttribute("times") ?? "1") || 1;
+      const done = jumped.get(repeatStart) ?? 0;
+      if (done < times) {
+        jumped.set(repeatStart, done + 1);
+        i = repeatStart;
+        continue;
+      }
+    }
+    i += 1;
+  }
+  return seq;
+}
+
+export type ParseMusicXmlOptions = {
+  expandRepeats?: boolean;
+};
+
+export function parseMusicXml(xmlText: string, options?: ParseMusicXmlOptions): ScoreEvent[] {
   const doc = new DOMParser().parseFromString(xmlText, "application/xml");
   const parserError = doc.querySelector("parsererror");
   if (parserError) throw new Error("MusicXML parse error");
 
   const part = doc.querySelector("part");
   if (!part) throw new Error("MusicXML has no part");
+
+  let measures = Array.from(part.querySelectorAll("measure"));
+  if (options?.expandRepeats && doc.querySelector("barline repeat")) {
+    measures = expandMeasures(measures);
+  }
 
   // --- Pass 1: テンポマーキングを収集する ---
   // MusicXML のテンポは <direction><sound tempo="X"/></direction> に記述される．
@@ -64,7 +127,7 @@ export function parseMusicXml(xmlText: string): ScoreEvent[] {
   let scanDiv = 0;
   let scanDivisions = 1;
 
-  for (const measure of Array.from(part.querySelectorAll("measure"))) {
+  for (const measure of measures) {
     const divEl = measure.querySelector("attributes > divisions");
     if (divEl) {
       const d = Number(divEl.textContent ?? "1");
@@ -119,7 +182,7 @@ export function parseMusicXml(xmlText: string): ScoreEvent[] {
   let lastChordStart = 0;
   const raw: ScoreEvent[] = [];
 
-  for (const measure of Array.from(part.querySelectorAll("measure"))) {
+  for (const measure of measures) {
     const divEl = measure.querySelector("attributes > divisions");
     if (divEl) {
       const d = Number(divEl.textContent ?? "1");

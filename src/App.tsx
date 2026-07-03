@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { parseMusicXml } from "./musicxml";
 import { parseMidi } from "./midi";
 import { extractMusicXmlFromMxl } from "./mxl";
-import type { Judge, PlayNote, ScoreEvent, ScoreMeta, SongCategory } from "./types";
+import type { Judge, PlayNote, ScoreEvent, ScoreMeta, SongCategory, SyncMap } from "./types";
 import { SONG_CATEGORIES } from "./types";
 import { saveResult, getRanking } from "./ranking";
 import { RankingScreen, submitScore } from "./RankingScreen";
@@ -67,6 +67,7 @@ type Runtime = {
   laneFlashTokens: number[];
   importedEvents: ScoreEvent[];
   midiPlaybackEvents: ScoreEvent[];
+  syncMap: SyncMap | null;
   chartSourceMode: "grid" | "score";
   achievedPoints: number;
   possiblePoints: number;
@@ -555,19 +556,38 @@ function assignLanesStrict(events: ScoreEvent[]): number[] {
 }
 
 // ScoreMeta から MusicXML/MXL を取得して ScoreEvent 列へ変換する．
-async function fetchMusicXml(meta: ScoreMeta): Promise<ScoreEvent[]> {
+async function fetchMusicXml(meta: ScoreMeta, expandRepeats: boolean): Promise<ScoreEvent[]> {
   if (meta.mxlPath) {
     const res = await fetch(resolvePublicUrl(meta.mxlPath));
     if (!res.ok) throw new Error("mxl not found");
     const xml = await extractMusicXmlFromMxl(await res.arrayBuffer());
-    return parseMusicXml(xml);
+    return parseMusicXml(xml, { expandRepeats });
   }
   if (meta.xmlPath) {
     const res = await fetch(resolvePublicUrl(meta.xmlPath));
     if (!res.ok) throw new Error("xml not found");
-    return parseMusicXml(await res.text());
+    return parseMusicXml(await res.text(), { expandRepeats });
   }
   return [];
+}
+
+// 同期マップ（楽譜時間→実音源時間のアンカー列）を取得する．無ければ null．
+async function fetchSyncMap(meta: ScoreMeta): Promise<SyncMap | null> {
+  if (!meta.syncMapPath) return null;
+  try {
+    const res = await fetch(resolvePublicUrl(meta.syncMapPath));
+    if (!res.ok) return null;
+    const data = (await res.json()) as SyncMap;
+    if (!Array.isArray(data.anchors) || data.anchors.length < 2) return null;
+    for (let i = 0; i < data.anchors.length; i++) {
+      const a = data.anchors[i];
+      if (!Array.isArray(a) || !Number.isFinite(a[0]) || !Number.isFinite(a[1])) return null;
+      if (i > 0 && (a[0] <= data.anchors[i - 1][0] || a[1] < data.anchors[i - 1][1])) return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 // ScoreMeta の MIDI を取得して ScoreEvent 互換に変換する．
@@ -676,6 +696,47 @@ function normalizeEventsToMediaDuration(
   return norm ? applyMediaNormalization(events, norm) : null;
 }
 
+// 同期マップ（DTWで求めた楽譜時間→実音源時間のアンカー列）で区分線形補間する．
+// 一様スケーリングと違い，リピート展開後のルバート・テンポ揺れまで追従できる．
+function interpolateSyncMap(anchors: [number, number][], t: number): number {
+  const n = anchors.length;
+  if (t <= anchors[0][0]) {
+    const [s0, a0] = anchors[0];
+    const [s1, a1] = anchors[1];
+    return a0 + ((t - s0) * (a1 - a0)) / (s1 - s0);
+  }
+  if (t >= anchors[n - 1][0]) {
+    const [s0, a0] = anchors[n - 2];
+    const [s1, a1] = anchors[n - 1];
+    return a1 + ((t - s1) * (a1 - a0)) / (s1 - s0);
+  }
+  let lo = 0;
+  let hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (anchors[mid][0] <= t) lo = mid;
+    else hi = mid;
+  }
+  const [s0, a0] = anchors[lo];
+  const [s1, a1] = anchors[hi];
+  return a0 + ((t - s0) * (a1 - a0)) / (s1 - s0);
+}
+
+function applySyncMapToEvents(events: ScoreEvent[], sync: SyncMap): ScoreEvent[] {
+  return events.map((e) => {
+    if (!Number.isFinite(e.timeMs)) return e;
+    const t = e.timeMs as number;
+    const mapped = interpolateSyncMap(sync.anchors, t);
+    const dur = Number.isFinite(e.durationMs) ? (e.durationMs as number) : 0;
+    const mappedEnd = dur > 0 ? interpolateSyncMap(sync.anchors, t + dur) : mapped;
+    return {
+      ...e,
+      timeMs: mapped,
+      durationMs: Math.max(0, mappedEnd - mapped),
+    };
+  });
+}
+
 export default function App(): JSX.Element {
   // 実DOM参照（プレイフィールド，ノーツ描画層，レーン演出）．
   const playfieldRef = useRef<HTMLDivElement>(null);
@@ -713,6 +774,7 @@ export default function App(): JSX.Element {
     laneFlashTokens: [0, 0, 0, 0],
     importedEvents: [],
     midiPlaybackEvents: [],
+    syncMap: null,
     chartSourceMode: "grid",
     achievedPoints: 0,
     possiblePoints: 0,
@@ -1061,9 +1123,18 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     rt.importedEvents = [];
     rt.midiPlaybackEvents = [];
+    rt.syncMap = null;
     rt.chartSourceMode = "grid";
     setXmlImportState("loading...");
-    Promise.allSettled([fetchMusicXml(selectedScore), fetchMidiEvents(selectedScore)])
+    // 同期マップの expandRepeats フラグが譜面パース結果を左右するため，先に取得する．
+    fetchSyncMap(selectedScore)
+      .then((sync) => {
+        rt.syncMap = sync;
+        return Promise.allSettled([
+          fetchMusicXml(selectedScore, !!sync?.expandRepeats),
+          fetchMidiEvents(selectedScore),
+        ]);
+      })
       .then((all) => {
         const scoreEvents = all[0].status === "fulfilled" ? all[0].value : [];
         const midiEvents = all[1].status === "fulfilled" ? all[1].value : [];
@@ -1295,18 +1366,39 @@ export default function App(): JSX.Element {
     o3.stop(now + dur + 0.02);
   }
 
+  // 同期マップが適用可能か（チャートの時間軸が純粋な楽譜時間のときのみ）．
+  // MIDI がある曲は mergeScoreAndMidi が時刻を MIDI 時間軸へ置換するため，
+  // 楽譜時間に張られたアンカーとは軸が合わず適用できない．
+  function canUseSyncMap(): boolean {
+    const rt = runtimeRef.current;
+    return (
+      rt.chartSourceMode === "score" &&
+      rt.importedEvents.length > 0 &&
+      rt.midiPlaybackEvents.length === 0 &&
+      !!rt.syncMap
+    );
+  }
+
   // score/midi イベントを使って synth BGM の再生キューを初期化する．
   function startSynthBgm(): void {
     const rt = runtimeRef.current;
     stopSynthBgm();
     const source = rt.midiPlaybackEvents.length ? rt.midiPlaybackEvents : getCurrentEvents();
-    // 譜面と同じ時間軸で鳴らすため，チャート構築と同一の正規化マッピングを適用する．
-    // マッピングはチャートの元イベント（importedEvents）から導出し，synth が
-    // 別のイベント集合（フル MIDI 等）を鳴らす場合でも縮尺が食い違わないようにする．
-    const chartSource =
-      rt.chartSourceMode === "score" && rt.importedEvents.length ? rt.importedEvents : source;
-    const norm = computeMediaNormalization(chartSource, rt.mediaDurationMs);
-    const events = (norm ? applyMediaNormalization(source, norm) : source)
+    // 譜面と同じ時間軸で鳴らすため，チャート構築と同一のマッピングを適用する．
+    // 同期マップが使える条件（rebuildChartForCurrentTime と同一）ならそれを優先し，
+    // なければ従来の一様正規化にフォールバックする．マッピングはチャートの
+    // 元イベント（importedEvents）から導出し，synth が別のイベント集合
+    // （フル MIDI 等）を鳴らす場合でも縮尺が食い違わないようにする．
+    let mapped: ScoreEvent[];
+    if (canUseSyncMap()) {
+      mapped = applySyncMapToEvents(source, rt.syncMap as SyncMap);
+    } else {
+      const chartSource =
+        rt.chartSourceMode === "score" && rt.importedEvents.length ? rt.importedEvents : source;
+      const norm = computeMediaNormalization(chartSource, rt.mediaDurationMs);
+      mapped = norm ? applyMediaNormalization(source, norm) : source;
+    }
+    const events = mapped
       .filter((e) => Number.isFinite(e.timeMs))
       .sort((a, b) => (a.timeMs as number) - (b.timeMs as number));
     if (!events.length) return;
@@ -1359,9 +1451,12 @@ export default function App(): JSX.Element {
     // 読み込んだ譜面は密度調整の前に実音源の時間軸へ正規化する．
     // （正規化済みなら fitChartToSongDuration の再スケーリングは不要で，
     // 間引きで端のノーツが消えた際の再伸縮による歪みも避けられる．）
+    // 同期マップがあればそれを最優先する（一様スケーリングではリピートや
+    // ルバートに追従できず，曲中で数秒〜数十秒ズレることを実測済み）．
     const rawEvents = getCurrentEvents();
-    const normalizedEvents =
-      rt.chartSourceMode === "score" && rt.importedEvents.length
+    const normalizedEvents = canUseSyncMap()
+      ? applySyncMapToEvents(rawEvents, rt.syncMap as SyncMap)
+      : rt.chartSourceMode === "score" && rt.importedEvents.length
         ? normalizeEventsToMediaDuration(rawEvents, rt.mediaDurationMs)
         : null;
     let chart = eventsToNotes(normalizedEvents ?? rawEvents, bpm, strictMode);
