@@ -1,65 +1,16 @@
 [
   {
-    "id": "shishiriennu-op78-etude",
-    "audioSec": 206,
-    "scoreSec": 204,
-    "firstMs": 2000,
-    "notes": 323,
-    "ratio": 1.008,
-    "currentOffset": -120
-  },
-  {
-    "id": "lian-ai-cai-pan-40mp",
-    "audioSec": 90,
-    "scoreSec": 163,
-    "firstMs": 0,
-    "notes": 1747,
-    "ratio": 0.551,
-    "currentOffset": 0
-  },
-  {
-    "id": "g-senjo-no-aria",
-    "audioSec": 165,
-    "scoreSec": 162,
-    "firstMs": 0,
-    "notes": 195,
-    "ratio": 1.017,
-    "currentOffset": -80
-  },
-  {
-    "id": "kanon-pachelbel",
-    "audioSec": 245,
-    "scoreSec": 245,
-    "firstMs": 0,
-    "notes": 1599,
-    "ratio": 1.001,
-    "currentOffset": -80
-  },
-  {
-    "id": "chopin-nocturne",
-    "audioSec": 200,
-    "scoreSec": 3,
-    "firstMs": 0,
-    "notes": 8,
-    "ratio": 66.667,
-    "currentOffset": 1650
-  },
-  {
-    "id": "chopin-practice-a",
-    "audioSec": 200,
-    "scoreSec": 2,
-    "firstMs": 0,
-    "notes": 5,
-    "ratio": 133.333,
-    "currentOffset": 1650
-  },
-  {
     "id": "turkish-march-mozart",
     "audioSec": 225,
     "scoreSec": 128,
     "firstMs": 0,
     "notes": 1426,
+    "tempoMarks": 1,
     "ratio": 1.765,
+    "fixedRatio": 1,
+    "keptNotesOld": 494,
+    "keptNotesNew": 494,
+    "strictMode": true,
     "currentOffset": 0
   },
   {
@@ -68,7 +19,12 @@
     "scoreSec": 131,
     "firstMs": 0,
     "notes": 901,
+    "tempoMarks": 4,
     "ratio": 1.223,
+    "fixedRatio": 1,
+    "keptNotesOld": 214,
+    "keptNotesNew": 307,
+    "strictMode": true,
     "currentOffset": 0
   },
   {
@@ -77,7 +33,12 @@
     "scoreSec": 376,
     "firstMs": 0,
     "notes": 1183,
+    "tempoMarks": 1,
     "ratio": 0.895,
+    "fixedRatio": 1,
+    "keptNotesOld": 405,
+    "keptNotesNew": 405,
+    "strictMode": true,
     "currentOffset": 0
   },
   {
@@ -86,7 +47,12 @@
     "scoreSec": 270,
     "firstMs": 309,
     "notes": 4375,
+    "tempoMarks": 286,
     "ratio": 1.028,
+    "fixedRatio": 1,
+    "keptNotesOld": 696,
+    "keptNotesNew": 726,
+    "strictMode": true,
     "currentOffset": 0
   },
   {
@@ -95,7 +61,12 @@
     "scoreSec": 110,
     "firstMs": 0,
     "notes": 1211,
+    "tempoMarks": 28,
     "ratio": 2.078,
+    "fixedRatio": 1,
+    "keptNotesOld": 276,
+    "keptNotesNew": 462,
+    "strictMode": true,
     "currentOffset": 0
   },
   {
@@ -104,340 +75,12 @@
     "scoreSec": 187,
     "firstMs": 0,
     "notes": 638,
+    "tempoMarks": 0,
     "ratio": 0.642,
-    "currentOffset": 0
-  },
-  {
-    "id": "un-owen-was-her-touhou",
-    "audioSec": 180,
-    "scoreSec": 122,
-    "firstMs": 774,
-    "notes": 433,
-    "ratio": 1.471,
-    "currentOffset": 0
-  },
-  {
-    "id": "clair-de-lune-debussy",
-    "audioSec": 300,
-    "scoreSec": 272,
-    "firstMs": 625,
-    "notes": 1719,
-    "ratio": 1.103,
-    "currentOffset": 0
-  },
-  {
-    "id": "liebestraum-liszt",
-    "audioSec": 270,
-    "scoreSec": 235,
-    "firstMs": 0,
-    "notes": 1962,
-    "ratio": 1.147,
-    "currentOffset": 0
-  },
-  {
-    "id": "gymnopedie-satie",
-    "audioSec": 195,
-    "scoreSec": 111,
-    "firstMs": 0,
-    "notes": 289,
-    "ratio": 1.752,
-    "currentOffset": 0
-  },
-  {
-    "id": "the-entertainer-joplin",
-    "audioSec": 240,
-    "scoreSec": 157,
-    "firstMs": 0,
-    "notes": 713,
-    "ratio": 1.526,
-    "currentOffset": 0
-  },
-  {
-    "id": "maple-leaf-rag-joplin",
-    "audioSec": 180,
-    "scoreSec": 101,
-    "firstMs": 0,
-    "notes": 1581,
-    "ratio": 1.786,
-    "currentOffset": 0
-  },
-  {
-    "id": "ave-maria-schubert",
-    "audioSec": 340,
-    "scoreSec": 112,
-    "firstMs": 0,
-    "notes": 611,
-    "ratio": 3.036,
-    "currentOffset": 0
-  },
-  {
-    "id": "flight-of-bumblebee",
-    "audioSec": 83,
-    "scoreSec": 84,
-    "firstMs": 0,
-    "notes": 1143,
-    "ratio": 0.994,
-    "currentOffset": 0
-  },
-  {
-    "id": "prelude-c-major-bach",
-    "audioSec": 135,
-    "scoreSec": 119,
-    "firstMs": 0,
-    "notes": 601,
-    "ratio": 1.133,
-    "currentOffset": 0
-  },
-  {
-    "id": "arabesque-debussy",
-    "audioSec": 300,
-    "scoreSec": 212,
-    "firstMs": 0,
-    "notes": 1545,
-    "ratio": 1.414,
-    "currentOffset": 0
-  },
-  {
-    "id": "fantasie-impromptu-chopin",
-    "audioSec": 285,
-    "scoreSec": 218,
-    "firstMs": 0,
-    "notes": 2118,
-    "ratio": 1.309,
-    "currentOffset": 0
-  },
-  {
-    "id": "wakare-no-kyoku-chopin",
-    "audioSec": 260,
-    "scoreSec": 47,
-    "firstMs": 0,
-    "notes": 494,
-    "ratio": 5.482,
-    "currentOffset": 0
-  },
-  {
-    "id": "senbonzakura-kurosup",
-    "audioSec": 252,
-    "scoreSec": 240,
-    "firstMs": 1364,
-    "notes": 2341,
-    "ratio": 1.05,
-    "currentOffset": 0
-  },
-  {
-    "id": "ghost-rule-deco27",
-    "audioSec": 214,
-    "scoreSec": 205,
-    "firstMs": 0,
-    "notes": 1497,
-    "ratio": 1.044,
-    "currentOffset": 0
-  },
-  {
-    "id": "roki-mikitop",
-    "audioSec": 228,
-    "scoreSec": 225,
-    "firstMs": 1600,
-    "notes": 1455,
-    "ratio": 1.012,
-    "currentOffset": 0
-  },
-  {
-    "id": "melt-supercell",
-    "audioSec": 265,
-    "scoreSec": 251,
-    "firstMs": 0,
-    "notes": 1214,
-    "ratio": 1.055,
-    "currentOffset": 0
-  },
-  {
-    "id": "world-is-mine-supercell",
-    "audioSec": 261,
-    "scoreSec": 250,
-    "firstMs": 7727,
-    "notes": 1318,
-    "ratio": 1.043,
-    "currentOffset": 0
-  },
-  {
-    "id": "cruel-angels-thesis-eva",
-    "audioSec": 244,
-    "scoreSec": 244,
-    "firstMs": 0,
-    "notes": 2016,
-    "ratio": 0.999,
-    "currentOffset": 0
-  },
-  {
-    "id": "guren-no-yumiya-aot",
-    "audioSec": 86,
-    "scoreSec": 86,
-    "firstMs": 0,
-    "notes": 1281,
-    "ratio": 0.995,
-    "currentOffset": 0
-  },
-  {
-    "id": "bohemian-rhapsody-queen",
-    "audioSec": 355,
-    "scoreSec": 217,
-    "firstMs": 13525,
-    "notes": 417,
-    "ratio": 1.64,
-    "currentOffset": 0
-  },
-  {
-    "id": "dont-stop-me-now-queen",
-    "audioSec": 210,
-    "scoreSec": 153,
-    "firstMs": 13636,
-    "notes": 175,
-    "ratio": 1.375,
-    "currentOffset": 0
-  },
-  {
-    "id": "connect-madoka",
-    "audioSec": 270,
-    "scoreSec": 417,
-    "firstMs": 1277,
-    "notes": 4499,
-    "ratio": 0.647,
-    "currentOffset": 0
-  },
-  {
-    "id": "only-my-railgun",
-    "audioSec": 258,
-    "scoreSec": 90,
-    "firstMs": 0,
-    "notes": 939,
-    "ratio": 2.853,
-    "currentOffset": 0
-  },
-  {
-    "id": "renai-circulation",
-    "audioSec": 252,
-    "scoreSec": 79,
-    "firstMs": 0,
-    "notes": 227,
-    "ratio": 3.198,
-    "currentOffset": 0
-  },
-  {
-    "id": "bloody-stream-jojo",
-    "audioSec": 264,
-    "scoreSec": 260,
-    "firstMs": 0,
-    "notes": 572,
-    "ratio": 1.014,
-    "currentOffset": 0
-  },
-  {
-    "id": "fly-me-to-the-moon",
-    "audioSec": 213,
-    "scoreSec": 216,
-    "firstMs": 3143,
-    "notes": 1837,
-    "ratio": 0.987,
-    "currentOffset": 0
-  },
-  {
-    "id": "pretender-higedan",
-    "audioSec": 330,
-    "scoreSec": 190,
-    "firstMs": 8936,
-    "notes": 211,
-    "ratio": 1.741,
-    "currentOffset": 0
-  },
-  {
-    "id": "yoru-ni-kakeru-yoasobi",
-    "audioSec": 258,
-    "scoreSec": 258,
-    "firstMs": 3692,
-    "notes": 1620,
-    "ratio": 1,
-    "currentOffset": 0
-  },
-  {
-    "id": "septette-dead-princess",
-    "audioSec": 137,
-    "scoreSec": 339,
-    "firstMs": 0,
-    "notes": 1208,
-    "ratio": 0.404,
-    "currentOffset": 0
-  },
-  {
-    "id": "rolling-girl",
-    "audioSec": 199,
-    "scoreSec": 396,
-    "firstMs": 0,
-    "notes": 1065,
-    "ratio": 0.503,
-    "currentOffset": 0
-  },
-  {
-    "id": "tell-your-world",
-    "audioSec": 248,
-    "scoreSec": 391,
-    "firstMs": 0,
-    "notes": 1108,
-    "ratio": 0.635,
-    "currentOffset": 0
-  },
-  {
-    "id": "unravel-tokyo-ghoul",
-    "audioSec": 237,
-    "scoreSec": 105,
-    "firstMs": 0,
-    "notes": 286,
-    "ratio": 2.257,
-    "currentOffset": 0
-  },
-  {
-    "id": "blue-bird-naruto",
-    "audioSec": 188,
-    "scoreSec": 123,
-    "firstMs": 0,
-    "notes": 400,
-    "ratio": 1.528,
-    "currentOffset": 0
-  },
-  {
-    "id": "crossing-field-sao",
-    "audioSec": 277,
-    "scoreSec": 141,
-    "firstMs": 0,
-    "notes": 216,
-    "ratio": 1.97,
-    "currentOffset": 0
-  },
-  {
-    "id": "take-on-me-aha",
-    "audioSec": 232,
-    "scoreSec": 343,
-    "firstMs": 0,
-    "notes": 644,
-    "ratio": 0.676,
-    "currentOffset": 0
-  },
-  {
-    "id": "we-will-rock-you-queen",
-    "audioSec": 135,
-    "scoreSec": 84,
-    "firstMs": 0,
-    "notes": 335,
-    "ratio": 1.6,
-    "currentOffset": 0
-  },
-  {
-    "id": "yesterday-beatles",
-    "audioSec": 108,
-    "scoreSec": 251,
-    "firstMs": 0,
-    "notes": 813,
-    "ratio": 0.43,
+    "fixedRatio": 1,
+    "keptNotesOld": 554,
+    "keptNotesNew": 332,
+    "strictMode": false,
     "currentOffset": 0
   }
 ]
