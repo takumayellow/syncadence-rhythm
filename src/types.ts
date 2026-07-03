@@ -23,11 +23,21 @@ export type ScoreMeta = {
   xmlPath?: string;
   mxlPath?: string;
   midiPath?: string;
+  syncMapPath?: string;
   strictMode?: boolean;
   offsetMs: number;
   bpm: number;
   lengthSec: number;
   category?: SongCategory;
+};
+
+// 楽譜時間→実音源時間の区分線形対応表（オフラインの音源アライメントで生成）．
+export type SyncMap = {
+  version: number;
+  // アンカーがリピート展開済みの楽譜時間軸に張られているか．
+  expandRepeats?: boolean;
+  // [scoreMs, audioMs] の単調増加列．
+  anchors: [number, number][];
 };
 
 export type ScoreEvent = {
