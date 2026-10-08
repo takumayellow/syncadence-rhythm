@@ -583,6 +583,16 @@ body[data-ui-mode="mobile"] .speed-row {
   pointer-events: none;
 }
 
+.cue-hint {
+  display: block;
+  margin-top: 4px;
+  font: 600 0.8rem system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  text-align: center;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
 .cue.hidden,
 .hit-feedback.hidden {
   opacity: 0;
@@ -1332,4 +1342,71 @@ select {
   cursor: pointer;
   font-weight: 700;
   font-size: 0.88rem;
+}
+
+.latency-panel {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: blur(6px);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  padding: 12px;
+}
+
+.latency-card {
+  background: linear-gradient(160deg, rgba(14, 22, 45, 0.97), rgba(22, 18, 48, 0.97));
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 18px;
+  padding: 16px 20px;
+  max-width: min(560px, 96vw);
+  width: 100%;
+  max-height: 94vh;
+  overflow-y: auto;
+  color: var(--text);
+  display: grid;
+  gap: 10px;
+}
+
+.latency-card h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.latency-help {
+  margin: 0;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  opacity: 0.85;
+}
+
+.latency-pad {
+  min-height: min(28vh, 220px);
+  font-size: 1.3rem;
+  font-weight: 700;
+  border-radius: 14px;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.latency-pad.active:active {
+  filter: brightness(1.4);
+}
+
+.latency-result p {
+  margin: 0;
+}
+
+.latency-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.latency-error {
+  margin: 0;
+  color: #ffb4b4;
+  font-size: 0.85rem;
 }
