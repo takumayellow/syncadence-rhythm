@@ -1,0 +1,104 @@
+{
+  "arabesque-debussy": {
+    "floor": 1.5,
+    "precision": 90.0,
+    "recall": 85.6,
+    "include": true
+  },
+  "ave-maria-schubert": {
+    "floor": 1.5,
+    "precision": 91.0,
+    "recall": 44.5,
+    "include": false
+  },
+  "chopin-nocturne": {
+    "floor": 0.75,
+    "precision": 91.9,
+    "recall": 99.3,
+    "include": true
+  },
+  "clair-de-lune-debussy": {
+    "floor": 1.75,
+    "precision": 92.0,
+    "recall": 94.2,
+    "include": true
+  },
+  "fantasie-impromptu-chopin": {
+    "floor": 0.5,
+    "precision": 91.8,
+    "recall": 92.0,
+    "include": true
+  },
+  "flight-of-bumblebee": {
+    "floor": 1.75,
+    "precision": 93.0,
+    "recall": 35.3,
+    "include": false
+  },
+  "fur-elise-beethoven": {
+    "floor": 0.5,
+    "precision": 90.0,
+    "recall": 97.9,
+    "include": true
+  },
+  "gymnopedie-satie": {
+    "floor": 1.75,
+    "precision": 92.1,
+    "recall": 92.6,
+    "include": true
+  },
+  "hungarian-dance-brahms": {
+    "floor": null,
+    "precision": 83.7,
+    "recall": null,
+    "include": false
+  },
+  "la-campanella-liszt": {
+    "floor": 1.5,
+    "precision": 95.6,
+    "recall": 61.5,
+    "include": true
+  },
+  "liebestraum-liszt": {
+    "floor": 1.75,
+    "precision": 90.7,
+    "recall": 76.9,
+    "include": true
+  },
+  "maple-leaf-rag-joplin": {
+    "floor": 0.75,
+    "precision": 98.1,
+    "recall": 96.4,
+    "include": true
+  },
+  "minute-waltz-chopin": {
+    "floor": 1.0,
+    "precision": 90.0,
+    "recall": 91.0,
+    "include": true
+  },
+  "moonlight-sonata-beethoven": {
+    "floor": 0.5,
+    "precision": 91.2,
+    "recall": 99.8,
+    "include": true
+  },
+  "prelude-c-major-bach": {
+    "floor": 0.5,
+    "precision": 93.4,
+    "recall": 98.9,
+    "include": true
+  },
+  "the-entertainer-joplin": {
+    "floor": 0.5,
+    "precision": 98.9,
+    "recall": 99.3,
+    "include": true
+  },
+  "wakare-no-kyoku-chopin": {
+    "floor": 1.25,
+    "precision": 92.2,
+    "recall": 96.8,
+    "include": true
+  }
+}

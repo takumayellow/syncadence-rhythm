@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import type { RankingEntry } from "./ranking";
 import { getRanking, clearAllRankings } from "./ranking";
 import type { ScoreMeta } from "./types";
+import { DIFFICULTIES, DIFFICULTY_LABELS, rankingSongId } from "./chart";
+import type { Difficulty } from "./chart";
 
 const RANKING_API = "https://ranking-api-932581541278.asia-northeast1.run.app";
 
@@ -47,33 +49,39 @@ export async function submitScore(songId: string, score: number, accuracy: numbe
 
 type Props = {
   scores: ScoreMeta[];
+  initialDifficulty: Difficulty;
   onClose: () => void;
 };
 
-export function RankingScreen({ scores, onClose }: Props) {
+export function RankingScreen({ scores, initialDifficulty, onClose }: Props) {
   const [tab, setTab] = useState<"local" | "global">("local");
   const [selectedSongId, setSelectedSongId] = useState<string>(
     scores[0]?.id ?? ""
   );
+  const [difficulty, setDifficulty] = useState<Difficulty>(initialDifficulty);
   const [entries, setEntries] = useState<RankingEntry[]>([]);
   const [globalEntries, setGlobalEntries] = useState<GlobalEntry[]>([]);
   const [globalLoading, setGlobalLoading] = useState(false);
   const [nickname, setNickname] = useState(getNickname());
   const [editingNickname, setEditingNickname] = useState(false);
 
+  const selectedSong = scores.find((s) => s.id === selectedSongId);
+  // 音源から作った譜面の曲は難易度ごとに記録している．
+  const rankingId = selectedSong?.chartPath ? rankingSongId(selectedSongId, difficulty) : selectedSongId;
+
   useEffect(() => {
-    if (selectedSongId && tab === "local") {
-      setEntries(getRanking(selectedSongId));
+    if (rankingId && tab === "local") {
+      setEntries(getRanking(rankingId));
     }
-    if (selectedSongId && tab === "global") {
+    if (rankingId && tab === "global") {
       setGlobalLoading(true);
-      fetch(`${RANKING_API}/api/rankings/${selectedSongId}`)
+      fetch(`${RANKING_API}/api/rankings/${encodeURIComponent(rankingId)}`)
         .then((r) => r.json())
         .then((data) => setGlobalEntries(data.rankings || []))
         .catch(() => setGlobalEntries([]))
         .finally(() => setGlobalLoading(false));
     }
-  }, [selectedSongId, tab]);
+  }, [rankingId, tab]);
 
   function handleClear() {
     if (!window.confirm("ローカルランキングデータをすべて削除しますか？")) return;
@@ -89,8 +97,6 @@ export function RankingScreen({ scores, onClose }: Props) {
     }
     setEditingNickname(false);
   }
-
-  const selectedSong = scores.find((s) => s.id === selectedSongId);
 
   return (
     <div className="ranking-overlay" role="dialog" aria-modal="true" aria-label="ランキング">
@@ -161,6 +167,18 @@ export function RankingScreen({ scores, onClose }: Props) {
                   <option key={s.id} value={s.id}>{s.title}</option>
                 ))}
               </select>
+              {selectedSong?.chartPath && (
+                <select
+                  className="ranking-select"
+                  aria-label="難易度"
+                  value={difficulty}
+                  onChange={(e) => setDifficulty(e.target.value as Difficulty)}
+                >
+                  {DIFFICULTIES.map((d) => (
+                    <option key={d} value={d}>{DIFFICULTY_LABELS[d]}</option>
+                  ))}
+                </select>
+              )}
             </div>
 
             {selectedSong && (

@@ -1,85 +1,226 @@
 [
   {
-    "id": "turkish-march-mozart",
-    "title": "トルコ行進曲",
-    "artist": "W.A.モーツァルト",
-    "audioUrl": "/scores/songs/turkish-march-mozart/audio.ogg",
-    "mxlPath": "/scores/songs/turkish-march-mozart/score.mxl",
-    "syncMapPath": "/scores/songs/turkish-march-mozart/sync.json",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 120,
-    "lengthSec": 225,
-    "category": "クラシック",
-    "source": "Wikimedia Commons (CC/PD)"
-  },
-  {
     "id": "fur-elise-beethoven",
     "title": "エリーゼのために",
     "artist": "L.v.ベートーヴェン",
     "audioUrl": "/scores/songs/fur-elise-beethoven/audio.ogg",
-    "mxlPath": "/scores/songs/fur-elise-beethoven/score.mxl",
-    "syncMapPath": "/scores/songs/fur-elise-beethoven/sync.json",
-    "strictMode": true,
+    "chartPath": "/scores/songs/fur-elise-beethoven/chart.json",
     "offsetMs": 0,
-    "bpm": 72,
-    "lengthSec": 160,
+    "bpm": 123,
+    "lengthSec": 176,
     "category": "クラシック",
-    "source": "Wikimedia Commons (CC/PD)"
+    "credit": {
+      "performer": "Sebion7125",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Fur_Elise.ogg"
+    }
   },
   {
     "id": "moonlight-sonata-beethoven",
     "title": "月光ソナタ 第1楽章",
     "artist": "L.v.ベートーヴェン",
     "audioUrl": "/scores/songs/moonlight-sonata-beethoven/audio.ogg",
-    "mxlPath": "/scores/songs/moonlight-sonata-beethoven/score.mxl",
-    "syncMapPath": "/scores/songs/moonlight-sonata-beethoven/sync.json",
-    "strictMode": true,
+    "chartPath": "/scores/songs/moonlight-sonata-beethoven/chart.json",
     "offsetMs": 0,
-    "bpm": 44,
-    "lengthSec": 337,
+    "bpm": 162,
+    "lengthSec": 307,
     "category": "クラシック",
-    "source": "Wikimedia Commons (CC/PD)"
+    "credit": {
+      "performer": "Wikimedia Commons",
+      "license": "Public domain",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Moonlight_Sonata.ogg"
+    }
+  },
+  {
+    "id": "minute-waltz-chopin",
+    "title": "子犬のワルツ 作品64-1",
+    "artist": "フレデリック・ショパン",
+    "audioUrl": "/scores/songs/minute-waltz-chopin/audio.ogg",
+    "chartPath": "/scores/songs/minute-waltz-chopin/chart.json",
+    "offsetMs": 0,
+    "bpm": 120,
+    "lengthSec": 120,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Muriel Nguyen Xuan",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Muriel-Nguyen-Xuan-Chopin-valse-opus64-1.ogg"
+    }
+  },
+  {
+    "id": "fantasie-impromptu-chopin",
+    "title": "幻想即興曲",
+    "artist": "フレデリック・ショパン",
+    "audioUrl": "/scores/songs/fantasie-impromptu-chopin/audio.ogg",
+    "chartPath": "/scores/songs/fantasie-impromptu-chopin/chart.json",
+    "offsetMs": 0,
+    "bpm": 100,
+    "lengthSec": 333,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Rfl (English Wikipedia)",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Fantasie-Impromptu_--_Frederic_Chopin.ogg"
+    }
+  },
+  {
+    "id": "chopin-nocturne",
+    "title": "ノクターン 作品9-2",
+    "artist": "フレデリック・ショパン",
+    "audioUrl": "/scores/songs/chopin-nocturne/audio.ogg",
+    "chartPath": "/scores/songs/chopin-nocturne/chart.json",
+    "offsetMs": 0,
+    "bpm": 132,
+    "lengthSec": 203,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Beeswaxcandle, Londonjackbooks (English Wikisource)",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Chopin_Nocturne_Op_9_No_2.ogg"
+    }
+  },
+  {
+    "id": "wakare-no-kyoku-chopin",
+    "title": "別れの曲",
+    "artist": "フレデリック・ショパン",
+    "audioUrl": "/scores/songs/wakare-no-kyoku-chopin/audio.ogg",
+    "chartPath": "/scores/songs/wakare-no-kyoku-chopin/chart.json",
+    "offsetMs": 0,
+    "bpm": 134,
+    "lengthSec": 247,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Al Goldstein collection (ibiblio)",
+      "license": "CC BY-SA 2.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Frederic_Chopin_-_Opus_10_-_Twelve_Grand_Etudes_-_E_Major.ogg"
+    }
   },
   {
     "id": "la-campanella-liszt",
     "title": "ラ・カンパネラ",
     "artist": "フランツ・リスト",
     "audioUrl": "/scores/songs/la-campanella-liszt/audio.ogg",
-    "mxlPath": "/scores/songs/la-campanella-liszt/score.mxl",
-    "syncMapPath": "/scores/songs/la-campanella-liszt/sync.json",
-    "strictMode": true,
+    "chartPath": "/scores/songs/la-campanella-liszt/chart.json",
     "offsetMs": 0,
-    "bpm": 97,
-    "lengthSec": 278,
+    "bpm": 110,
+    "lengthSec": 372,
     "category": "クラシック",
-    "source": "Wikimedia Commons (CC/PD)"
+    "credit": {
+      "performer": "Wikimedia Commons",
+      "license": "Public domain",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Liszt-La_Campanella-Greiss.ogg"
+    }
   },
   {
-    "id": "hungarian-dance-brahms",
-    "title": "ハンガリー舞曲 第5番",
-    "artist": "ヨハネス・ブラームス",
-    "audioUrl": "/scores/songs/hungarian-dance-brahms/audio.ogg",
-    "mxlPath": "/scores/songs/hungarian-dance-brahms/score.mxl",
-    "syncMapPath": "/scores/songs/hungarian-dance-brahms/sync.json",
-    "strictMode": true,
+    "id": "liebestraum-liszt",
+    "title": "愛の夢 第3番",
+    "artist": "フランツ・リスト",
+    "audioUrl": "/scores/songs/liebestraum-liszt/audio.ogg",
+    "chartPath": "/scores/songs/liebestraum-liszt/chart.json",
     "offsetMs": 0,
-    "bpm": 130,
-    "lengthSec": 228,
+    "bpm": 128,
+    "lengthSec": 283,
     "category": "クラシック",
-    "source": "Wikimedia Commons (CC/PD)"
+    "credit": {
+      "performer": "Al Goldstein collection (ibiblio)",
+      "license": "CC BY-SA 2.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Franz_Liszt_-_Liebestraum,_Ab_Major.ogg"
+    }
   },
   {
-    "id": "minute-waltz-chopin",
-    "title": "ワルツ 作品64-2 嬰ハ短調",
-    "artist": "フレデリック・ショパン",
-    "audioUrl": "/scores/songs/minute-waltz-chopin/audio.ogg",
-    "mxlPath": "/scores/songs/minute-waltz-chopin/score.mxl",
-    "syncMapPath": "/scores/songs/minute-waltz-chopin/sync.json",
+    "id": "clair-de-lune-debussy",
+    "title": "月の光",
+    "artist": "クロード・ドビュッシー",
+    "audioUrl": "/scores/songs/clair-de-lune-debussy/audio.ogg",
+    "chartPath": "/scores/songs/clair-de-lune-debussy/chart.json",
     "offsetMs": 0,
-    "bpm": 140,
-    "lengthSec": 120,
+    "bpm": 132,
+    "lengthSec": 304,
     "category": "クラシック",
-    "source": "Wikimedia Commons (CC/PD)"
+    "credit": {
+      "performer": "Laurens Goedhart",
+      "license": "Public domain",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Clair_de_lune_(Claude_Debussy)_Suite_bergamasque.ogg"
+    }
+  },
+  {
+    "id": "arabesque-debussy",
+    "title": "アラベスク 第1番",
+    "artist": "クロード・ドビュッシー",
+    "audioUrl": "/scores/songs/arabesque-debussy/audio.ogg",
+    "chartPath": "/scores/songs/arabesque-debussy/chart.json",
+    "offsetMs": 0,
+    "bpm": 115,
+    "lengthSec": 293,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Patrizia Prati",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Claude_Debussy_-_Premi%C3%A8re_Arabesque_-_Patrizia_Prati.ogg"
+    }
+  },
+  {
+    "id": "gymnopedie-satie",
+    "title": "ジムノペディ 第1番",
+    "artist": "エリック・サティ",
+    "audioUrl": "/scores/songs/gymnopedie-satie/audio.ogg",
+    "chartPath": "/scores/songs/gymnopedie-satie/chart.json",
+    "offsetMs": 0,
+    "bpm": 88,
+    "lengthSec": 184,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Robin Alciatore (Musopen)",
+      "license": "Public domain",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Erik_Satie_-_gymnopedies_-_la_1_ere._lent_et_douloureux.ogg"
+    }
+  },
+  {
+    "id": "prelude-c-major-bach",
+    "title": "前奏曲 ハ長調 BWV846",
+    "artist": "J.S.バッハ",
+    "audioUrl": "/scores/songs/prelude-c-major-bach/audio.ogg",
+    "chartPath": "/scores/songs/prelude-c-major-bach/chart.json",
+    "offsetMs": 0,
+    "bpm": 111,
+    "lengthSec": 163,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Kimiko Ishizaka",
+      "license": "CC0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Kimiko_Ishizaka_-_Bach_-_Well-Tempered_Clavier,_Book_1_-_01_Prelude_No._1_in_C_major,_BWV_846.ogg"
+    }
+  },
+  {
+    "id": "the-entertainer-joplin",
+    "title": "エンターテイナー",
+    "artist": "スコット・ジョプリン",
+    "audioUrl": "/scores/songs/the-entertainer-joplin/audio.ogg",
+    "chartPath": "/scores/songs/the-entertainer-joplin/chart.json",
+    "offsetMs": 0,
+    "bpm": 164,
+    "lengthSec": 234,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Wikimedia Commons",
+      "license": "Public domain",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:The_Entertainer_-_Scott_Joplin.ogg"
+    }
+  },
+  {
+    "id": "maple-leaf-rag-joplin",
+    "title": "メイプルリーフ・ラグ",
+    "artist": "スコット・ジョプリン",
+    "audioUrl": "/scores/songs/maple-leaf-rag-joplin/audio.ogg",
+    "chartPath": "/scores/songs/maple-leaf-rag-joplin/chart.json",
+    "offsetMs": 0,
+    "bpm": 152,
+    "lengthSec": 53,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Wikimedia Commons",
+      "license": "Public domain",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Maple_Leaf_Rag.ogg"
+    }
   }
 ]

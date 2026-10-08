@@ -6,6 +6,8 @@ import type { Judge, PlayNote, ScoreEvent, ScoreMeta, SongCategory, SyncMap } fr
 import { SONG_CATEGORIES } from "./types";
 import { saveResult, getRanking } from "./ranking";
 import { RankingScreen, submitScore } from "./RankingScreen";
+import type { ChartFile, Difficulty } from "./chart";
+import { DIFFICULTIES, DIFFICULTY_LABELS, chartToNotes, fetchChart, isDifficulty, rankingSongId } from "./chart";
 
 const LANE_COUNT = 4;
 const HIT_KEYS = ["KeyD", "KeyF", "KeyJ", "KeyK"];
@@ -33,15 +35,14 @@ const SCORE_MAP: Record<Judge, number> = {
 };
 
 const defaultScore: ScoreMeta = {
-  id: "shishiriennu-op78-etude",
-  title: "シシリエンヌ 作品78 ト短調",
-  artist: "ガブリエル・フォーレ",
-  audioUrl: "/scores/songs/shishiriennu-op78-etude/audio.mp3",
-  mxlPath: "/scores/songs/shishiriennu-op78-etude/score.mxl",
-  strictMode: true,
-  offsetMs: -120,
-  bpm: 100,
-  lengthSec: 240,
+  id: "fur-elise-beethoven",
+  title: "エリーゼのために",
+  artist: "L.v.ベートーヴェン",
+  audioUrl: "/scores/songs/fur-elise-beethoven/audio.ogg",
+  chartPath: "/scores/songs/fur-elise-beethoven/chart.json",
+  offsetMs: 0,
+  bpm: 123,
+  lengthSec: 176,
 };
 
 // runtimeRef が保持する「再レンダリング不要の実行状態」一式．
@@ -68,7 +69,9 @@ type Runtime = {
   importedEvents: ScoreEvent[];
   midiPlaybackEvents: ScoreEvent[];
   syncMap: SyncMap | null;
-  chartSourceMode: "grid" | "score";
+  // chart: 音源から生成した chart.json．score: MusicXML/MIDI．grid: 規則パターン．
+  chartSourceMode: "grid" | "score" | "chart";
+  audioChart: ChartFile | null;
   achievedPoints: number;
   possiblePoints: number;
   perfectCount: number;
@@ -97,6 +100,16 @@ type Runtime = {
 // レーン全体の spread 係数（画面幅に対する比率）．
 const NEAR_SPREAD = 0.84;
 const FAR_SPREAD = 0.03;
+
+// 曲リスト由来のリンクは https のときだけ出す（javascript: などを踏ませない）．
+function isSafeHttpUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 // public 配下の相対URLを，現在の base path に安全に解決する．
 function resolvePublicUrl(path: string): string {
@@ -776,6 +789,7 @@ export default function App(): JSX.Element {
     midiPlaybackEvents: [],
     syncMap: null,
     chartSourceMode: "grid",
+    audioChart: null,
     achievedPoints: 0,
     possiblePoints: 0,
     perfectCount: 0,
@@ -810,6 +824,16 @@ export default function App(): JSX.Element {
 
   // カテゴリフィルタ．null は「すべて」を表す．
   const [selectedCategory, setSelectedCategory] = useState<SongCategory | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>(() => {
+    try {
+      const saved = localStorage.getItem("pjsk_difficulty");
+      return isDifficulty(saved) ? saved : "normal";
+    } catch {
+      return "normal";
+    }
+  });
+  // 譜面の再構築は音源イベントのコールバックからも呼ばれるので，最新値を ref で渡す．
+  const difficultyRef = useRef<Difficulty>(difficulty);
   const filteredScores = useMemo(
     () => selectedCategory === null ? scores : scores.filter((s) => s.category === selectedCategory),
     [scores, selectedCategory]
@@ -1124,8 +1148,29 @@ export default function App(): JSX.Element {
     rt.importedEvents = [];
     rt.midiPlaybackEvents = [];
     rt.syncMap = null;
+    rt.audioChart = null;
     rt.chartSourceMode = "grid";
     setXmlImportState("loading...");
+    // 音源から生成した譜面があれば，楽譜の読み込みと時間軸の写像は行わない．
+    if (selectedScore.chartPath) {
+      let cancelled = false;
+      fetchChart(resolvePublicUrl(selectedScore.chartPath))
+        .then((chart) => {
+          if (cancelled) return;
+          rt.audioChart = chart;
+          rt.chartSourceMode = "chart";
+          setXmlImportState("chart: audio-aligned");
+        })
+        .catch(() => {
+          if (!cancelled) setXmlImportState("chart load failed");
+        })
+        .finally(() => {
+          if (!cancelled) resetGame();
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
     // 同期マップの expandRepeats フラグが譜面パース結果を左右するため，先に取得する．
     fetchSyncMap(selectedScore)
       .then((sync) => {
@@ -1156,6 +1201,19 @@ export default function App(): JSX.Element {
       .finally(() => resetGame());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedScoreId]);
+
+  // 難易度を変えたら譜面を作り直す（プレイ中なら止めて最初から）．
+  useEffect(() => {
+    try {
+      localStorage.setItem("pjsk_difficulty", difficulty);
+    } catch {
+      // 保存できなくても選択はそのまま使う．
+    }
+    if (difficultyRef.current === difficulty) return;
+    difficultyRef.current = difficulty;
+    if (runtimeRef.current.chartSourceMode === "chart") resetGame();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [difficulty]);
 
   // 譜面データがない場合のフォールバック用に，規則パターンのイベント列を生成する．
   function generateGridEvents(bpm: number): ScoreEvent[] {
@@ -1441,6 +1499,22 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     // プレイ中に再構築する場合は，過去ノーツを済み扱いにするため現在時刻を取得．
     const now = rt.gameRunning ? getTimelineMs() : 0;
+    if (rt.chartSourceMode === "chart" && rt.audioChart) {
+      // 生成済みの譜面はノーツ時刻が音源の再生位置そのものなので，密度調整や伸縮をしない．
+      const songOffset = selectedScore.offsetMs || 0;
+      // 音源のメタデータ読込前は mediaDurationMs が曲リストの概算なので，譜面側の長さも見る．
+      const cutoffMs = Math.max(0, Math.max(rt.mediaDurationMs, rt.audioChart.durationMs) - 500);
+      const notes = chartToNotes(rt.audioChart, difficultyRef.current)
+        .map((n) => ({ ...n, hitTime: n.hitTime + songOffset, holdEndTime: n.holdEndTime + songOffset }))
+        .filter((n) => n.hitTime >= 0 && n.hitTime <= cutoffMs)
+        .map((n) =>
+          n.holdEndTime > cutoffMs
+            ? { ...n, holdEndTime: cutoffMs, durationMs: Math.max(0, cutoffMs - n.hitTime) }
+            : n
+        );
+      installChart(notes, now);
+      return;
+    }
     let bpm = settingsRef.current.chartTempoBpm;
     const strictMode = !!selectedScore.strictMode;
     // beat 譜面のみの場合は曲長から BPM を再推定してズレを減らす．
@@ -1495,7 +1569,13 @@ export default function App(): JSX.Element {
       }
       return n;
     });
-    rt.chart = removeOverlapsWithLongNotes(chart);
+    installChart(removeOverlapsWithLongNotes(chart), now);
+  }
+
+  // 組み上がった譜面を実行状態へ載せ，描画要素と判定済みフラグを初期化する．
+  function installChart(chart: PlayNote[], now: number): void {
+    const rt = runtimeRef.current;
+    rt.chart = chart;
     rt.sweepIndex = 0;
     rt.chartEndMs = Math.max(0, rt.mediaDurationMs);
     // 達成率計算用の理論満点（ロングは頭+尻を想定して高め）．
@@ -2244,8 +2324,11 @@ export default function App(): JSX.Element {
     const clear = acc >= 72 && rt.missCount < Math.max(30, Math.floor(rt.chart.length * 0.22));
     // Save to local ranking and check if new personal best.
     const rankLabel = `RANK ${calcRank(acc)}`;
+    // 生成譜面は難易度ごとにノーツ数が違うので，ランキングも難易度で分ける．
+    const rankingId =
+      selectedScore.chartPath ? rankingSongId(selectedScore.id, difficultyRef.current) : selectedScore.id;
     const isNewBest = saveResult({
-      songId: selectedScore.id,
+      songId: rankingId,
       songTitle: selectedScore.title,
       score: rt.score,
       accuracy: acc,
@@ -2259,7 +2342,7 @@ export default function App(): JSX.Element {
     setResult({ show: true, state: clear ? "CLEAR!" : "FAILED", rank: rankLabel, acc: `${acc.toFixed(1)}%`, score: `${rt.score}`, isNewBest });
     // 全体ランキングにスコア送信
     if (isNewBest) {
-      submitScore(selectedScore.id, rt.score, acc, rankLabel);
+      submitScore(rankingId, rt.score, acc, rankLabel);
     }
   }
 
@@ -2539,6 +2622,11 @@ export default function App(): JSX.Element {
                 <select value={selectedScoreId} onChange={(e) => setSelectedScoreId(e.target.value)}>
                   {filteredScores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
                 </select>
+                {selectedScore.chartPath && (
+                  <select aria-label="難易度" value={difficulty} onChange={(e) => setDifficulty(e.target.value as Difficulty)}>
+                    {DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY_LABELS[d]}</option>)}
+                  </select>
+                )}
               </div>
             </div>
           </header>
@@ -2555,6 +2643,16 @@ export default function App(): JSX.Element {
             >
               {filteredScores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
             </select>
+            {selectedScore.chartPath && (
+              <select
+                className="mobile-toolbar-select mobile-difficulty-select"
+                aria-label="難易度"
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value as Difficulty)}
+              >
+                {DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY_LABELS[d]}</option>)}
+              </select>
+            )}
             <button className="mobile-toolbar-btn" onClick={() => setSettingsOpen(true)}>⚙</button>
           </div>
         )}
@@ -2626,6 +2724,14 @@ export default function App(): JSX.Element {
             <button onClick={() => setSettingsOpen(true)}>SETTINGS</button>
             <button onClick={() => setRankingOpen(true)}>RANKING</button>
             <div className="progress"><span ref={el => { if (el) progressElRef.current[0] = el; }}>{progressRef.current}</span></div>
+            {selectedScore.credit && (
+              <div className="song-credit">
+                音源: {selectedScore.credit.performer} / {selectedScore.credit.license}{" "}
+                {isSafeHttpUrl(selectedScore.credit.sourceUrl) && (
+                  <a href={selectedScore.credit.sourceUrl} target="_blank" rel="noopener noreferrer">出典</a>
+                )}
+              </div>
+            )}
           </footer>
         )}
       </main>
@@ -2684,6 +2790,27 @@ export default function App(): JSX.Element {
             </select>
             <span>{selectedScore.artist}</span>
           </div>
+          {selectedScore.chartPath && (
+            <>
+              <label>難易度</label>
+              <div className="speed-row">
+                <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as Difficulty)}>
+                  {DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY_LABELS[d]}</option>)}
+                </select>
+              </div>
+            </>
+          )}
+          {selectedScore.credit && (
+            <>
+              <label>音源</label>
+              <p className="song-credit">
+                {selectedScore.credit.performer} / {selectedScore.credit.license}{" "}
+                {isSafeHttpUrl(selectedScore.credit.sourceUrl) && (
+                  <a href={selectedScore.credit.sourceUrl} target="_blank" rel="noopener noreferrer">出典</a>
+                )}
+              </p>
+            </>
+          )}
           <div className="speed-row">
             <button onClick={toggleTapTempo}>TAP TEMPO</button>
             <span>{tapTempoState}</span>
@@ -2769,7 +2896,7 @@ export default function App(): JSX.Element {
 
       {/* ローカルランキング画面 */}
       {rankingOpen && (
-        <RankingScreen scores={scores} onClose={() => setRankingOpen(false)} />
+        <RankingScreen scores={scores} initialDifficulty={difficulty} onClose={() => setRankingOpen(false)} />
       )}
     </>
   );

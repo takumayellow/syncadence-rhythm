@@ -24,11 +24,21 @@ export type ScoreMeta = {
   mxlPath?: string;
   midiPath?: string;
   syncMapPath?: string;
+  // 音源から生成した難易度別の譜面 (chart.json)．あればこれを最優先で使う．
+  chartPath?: string;
   strictMode?: boolean;
   offsetMs: number;
   bpm: number;
   lengthSec: number;
   category?: SongCategory;
+  // 録音の出どころ (演奏者・ライセンス・配布元)．CC ライセンスの表示義務のため画面に出す．
+  credit?: SongCredit;
+};
+
+export type SongCredit = {
+  performer: string;
+  license: string;
+  sourceUrl: string;
 };
 
 // 楽譜時間→実音源時間の区分線形対応表（オフラインの音源アライメントで生成）．

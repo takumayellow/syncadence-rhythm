@@ -513,6 +513,12 @@ body[data-ui-mode="mobile"] .mobile-toolbar-btn {
   border-radius: 8px;
 }
 
+body[data-ui-mode="mobile"] .mobile-toolbar-select.mobile-difficulty-select {
+  flex: 0 0 auto;
+  width: 7.5em;
+  text-overflow: clip;
+}
+
 body[data-ui-mode="mobile"] .mobile-toolbar-select {
   flex: 1;
   min-width: 0;
@@ -661,6 +667,17 @@ button.primary {
 .progress {
   margin-left: auto;
   opacity: 0.9;
+}
+
+.song-credit {
+  width: 100%;
+  margin: 0;
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+
+.song-credit a {
+  color: inherit;
 }
 
 .settings-panel {
