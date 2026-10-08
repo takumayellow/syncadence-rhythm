@@ -2,10 +2,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { parseMusicXml } from "./musicxml";
 import { parseMidi } from "./midi";
 import { extractMusicXmlFromMxl } from "./mxl";
-import type { Judge, PlayNote, ScoreEvent, ScoreMeta, SongCategory } from "./types";
+import type { Judge, PlayNote, ScoreEvent, ScoreMeta, SongCategory, SyncMap } from "./types";
 import { SONG_CATEGORIES } from "./types";
 import { saveResult, getRanking } from "./ranking";
-import { RankingScreen } from "./RankingScreen";
+import { RankingScreen, submitScore } from "./RankingScreen";
+import type { ChartFile, Difficulty } from "./chart";
+import { DIFFICULTIES, DIFFICULTY_LABELS, chartToNotes, fetchChart, isDifficulty, rankingSongId } from "./chart";
 
 const LANE_COUNT = 4;
 const HIT_KEYS = ["KeyD", "KeyF", "KeyJ", "KeyK"];
@@ -33,15 +35,14 @@ const SCORE_MAP: Record<Judge, number> = {
 };
 
 const defaultScore: ScoreMeta = {
-  id: "shishiriennu-op78-etude",
-  title: "シシリエンヌ 作品78 ト短調",
-  artist: "ガブリエル・フォーレ",
-  audioUrl: "/scores/songs/shishiriennu-op78-etude/audio.mp3",
-  mxlPath: "/scores/songs/shishiriennu-op78-etude/score.mxl",
-  strictMode: true,
-  offsetMs: -120,
-  bpm: 100,
-  lengthSec: 240,
+  id: "fur-elise-beethoven",
+  title: "エリーゼのために",
+  artist: "L.v.ベートーヴェン",
+  audioUrl: "/scores/songs/fur-elise-beethoven/audio.ogg",
+  chartPath: "/scores/songs/fur-elise-beethoven/chart.json",
+  offsetMs: 0,
+  bpm: 123,
+  lengthSec: 176,
 };
 
 // runtimeRef が保持する「再レンダリング不要の実行状態」一式．
@@ -67,7 +68,10 @@ type Runtime = {
   laneFlashTokens: number[];
   importedEvents: ScoreEvent[];
   midiPlaybackEvents: ScoreEvent[];
-  chartSourceMode: "grid" | "score";
+  syncMap: SyncMap | null;
+  // chart: 音源から生成した chart.json．score: MusicXML/MIDI．grid: 規則パターン．
+  chartSourceMode: "grid" | "score" | "chart";
+  audioChart: ChartFile | null;
   achievedPoints: number;
   possiblePoints: number;
   perfectCount: number;
@@ -96,6 +100,16 @@ type Runtime = {
 // レーン全体の spread 係数（画面幅に対する比率）．
 const NEAR_SPREAD = 0.84;
 const FAR_SPREAD = 0.03;
+
+// 曲リスト由来のリンクは https のときだけ出す（javascript: などを踏ませない）．
+function isSafeHttpUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
 
 // public 配下の相対URLを，現在の base path に安全に解決する．
 function resolvePublicUrl(path: string): string {
@@ -287,13 +301,24 @@ function removeOverlapsWithLongNotes(notes: PlayNote[]): PlayNote[] {
 
 // 譜面全体を曲長に合わせてスケーリング＋クランプし，先頭リードインも確保する．
 // スコアが音源より長い場合は比例縮小して全ノーツを収める．
-function fitChartToSongDuration(chart: PlayNote[], _mediaDurationMs: number): PlayNote[] {
-  // MusicXML の timeMs は譜面内テンポに基づく絶対時刻を持つ．
-  // 音源とテンポ/長さが異なる場合にスケーリングするとかえってタイミングが
-  // 崩れるため，譜面の時刻をそのまま信頼する．
-  // 音源との開始位置ズレは offsetMs（rebuildChartForCurrentTime で加算）で調整する．
-  if (!chart.length) return chart;
-  return [...chart].sort((a, b) => a.hitTime - b.hitTime);
+function fitChartToSongDuration(chart: PlayNote[], mediaDurationMs: number): PlayNote[] {
+  if (!chart.length || mediaDurationMs <= 0) return chart;
+  const sorted = [...chart].sort((a, b) => a.hitTime - b.hitTime);
+  const chartFirst = sorted[0].hitTime;
+  const chartLast = Math.max(...sorted.map((n) => Math.max(n.hitTime, n.holdEndTime)));
+  const chartSpan = chartLast - chartFirst;
+  if (chartSpan <= 0) return sorted;
+  // 譜面と音源の長さが5%以上異なる場合、比例スケーリングで合わせる
+  const leadInMs = 1200; // 最初のノーツ前の余白
+  const tailMs = 500;    // 曲末尾の余白
+  const targetSpan = Math.max(1000, mediaDurationMs - leadInMs - tailMs);
+  const ratio = targetSpan / chartSpan;
+  if (Math.abs(ratio - 1.0) < 0.05) return sorted; // 5%未満のずれは無視
+  return sorted.map((n) => ({
+    ...n,
+    hitTime: Math.round(leadInMs + (n.hitTime - chartFirst) * ratio),
+    holdEndTime: Math.round(leadInMs + (n.holdEndTime - chartFirst) * ratio),
+  }));
 }
 
 // 譜面がスカスカかどうかを，ノーツ数・時間カバー率・密度で判定する．
@@ -544,19 +569,38 @@ function assignLanesStrict(events: ScoreEvent[]): number[] {
 }
 
 // ScoreMeta から MusicXML/MXL を取得して ScoreEvent 列へ変換する．
-async function fetchMusicXml(meta: ScoreMeta): Promise<ScoreEvent[]> {
+async function fetchMusicXml(meta: ScoreMeta, expandRepeats: boolean): Promise<ScoreEvent[]> {
   if (meta.mxlPath) {
     const res = await fetch(resolvePublicUrl(meta.mxlPath));
     if (!res.ok) throw new Error("mxl not found");
     const xml = await extractMusicXmlFromMxl(await res.arrayBuffer());
-    return parseMusicXml(xml);
+    return parseMusicXml(xml, { expandRepeats });
   }
   if (meta.xmlPath) {
     const res = await fetch(resolvePublicUrl(meta.xmlPath));
     if (!res.ok) throw new Error("xml not found");
-    return parseMusicXml(await res.text());
+    return parseMusicXml(await res.text(), { expandRepeats });
   }
   return [];
+}
+
+// 同期マップ（楽譜時間→実音源時間のアンカー列）を取得する．無ければ null．
+async function fetchSyncMap(meta: ScoreMeta): Promise<SyncMap | null> {
+  if (!meta.syncMapPath) return null;
+  try {
+    const res = await fetch(resolvePublicUrl(meta.syncMapPath));
+    if (!res.ok) return null;
+    const data = (await res.json()) as SyncMap;
+    if (!Array.isArray(data.anchors) || data.anchors.length < 2) return null;
+    for (let i = 0; i < data.anchors.length; i++) {
+      const a = data.anchors[i];
+      if (!Array.isArray(a) || !Number.isFinite(a[0]) || !Number.isFinite(a[1])) return null;
+      if (i > 0 && (a[0] <= data.anchors[i - 1][0] || a[1] < data.anchors[i - 1][1])) return null;
+    }
+    return data;
+  } catch {
+    return null;
+  }
 }
 
 // ScoreMeta の MIDI を取得して ScoreEvent 互換に変換する．
@@ -605,6 +649,107 @@ function mergeScoreAndMidi(scoreEvents: ScoreEvent[], midiEvents: ScoreEvent[]):
   return midiEvents;
 }
 
+// 譜面イベントの時間軸を実音源の長さへ一様スケーリングする．
+// 楽譜記載テンポ（無指定時は120BPM既定）と実演奏のテンポは大きく乖離することが
+// 多いため，密度調整・ロング判定など ms 閾値ベースの後段処理より前に
+// 実時間へ正規化しておく必要がある（後段の fitChartToSongDuration だけでは
+// 閾値処理が譜面時間で走ってしまい，間引き・ロング化が実時間と食い違う）．
+// 正規化できない場合（時刻情報が乏しい等）は null を返す．
+const CHART_LEAD_IN_MS = 1200;
+const CHART_TAIL_MS = 500;
+
+type MediaNormalization = {
+  firstMs: number;
+  ratio: number;
+};
+
+function computeMediaNormalization(
+  events: ScoreEvent[],
+  mediaDurationMs: number,
+): MediaNormalization | null {
+  if (!Number.isFinite(mediaDurationMs) || mediaDurationMs <= 0) return null;
+  let firstMs = Number.POSITIVE_INFINITY;
+  let lastMs = Number.NEGATIVE_INFINITY;
+  let timedCount = 0;
+  for (const e of events) {
+    if (!Number.isFinite(e.timeMs)) continue;
+    timedCount += 1;
+    const t = e.timeMs as number;
+    const end = t + (Number.isFinite(e.durationMs) ? (e.durationMs as number) : 0);
+    if (t < firstMs) firstMs = t;
+    if (end > lastMs) lastMs = end;
+  }
+  const span = lastMs - firstMs;
+  if (timedCount < 2 || !(span > 0)) return null;
+  const targetSpan = Math.max(1000, mediaDurationMs - CHART_LEAD_IN_MS - CHART_TAIL_MS);
+  return { firstMs, ratio: targetSpan / span };
+}
+
+function applyMediaNormalization(
+  events: ScoreEvent[],
+  norm: MediaNormalization,
+): ScoreEvent[] {
+  return events.map((e) => {
+    if (!Number.isFinite(e.timeMs)) return e;
+    return {
+      ...e,
+      timeMs: CHART_LEAD_IN_MS + ((e.timeMs as number) - norm.firstMs) * norm.ratio,
+      durationMs: Number.isFinite(e.durationMs)
+        ? (e.durationMs as number) * norm.ratio
+        : e.durationMs,
+    };
+  });
+}
+
+function normalizeEventsToMediaDuration(
+  events: ScoreEvent[],
+  mediaDurationMs: number,
+): ScoreEvent[] | null {
+  const norm = computeMediaNormalization(events, mediaDurationMs);
+  return norm ? applyMediaNormalization(events, norm) : null;
+}
+
+// 同期マップ（DTWで求めた楽譜時間→実音源時間のアンカー列）で区分線形補間する．
+// 一様スケーリングと違い，リピート展開後のルバート・テンポ揺れまで追従できる．
+function interpolateSyncMap(anchors: [number, number][], t: number): number {
+  const n = anchors.length;
+  if (t <= anchors[0][0]) {
+    const [s0, a0] = anchors[0];
+    const [s1, a1] = anchors[1];
+    return a0 + ((t - s0) * (a1 - a0)) / (s1 - s0);
+  }
+  if (t >= anchors[n - 1][0]) {
+    const [s0, a0] = anchors[n - 2];
+    const [s1, a1] = anchors[n - 1];
+    return a1 + ((t - s1) * (a1 - a0)) / (s1 - s0);
+  }
+  let lo = 0;
+  let hi = n - 1;
+  while (hi - lo > 1) {
+    const mid = (lo + hi) >> 1;
+    if (anchors[mid][0] <= t) lo = mid;
+    else hi = mid;
+  }
+  const [s0, a0] = anchors[lo];
+  const [s1, a1] = anchors[hi];
+  return a0 + ((t - s0) * (a1 - a0)) / (s1 - s0);
+}
+
+function applySyncMapToEvents(events: ScoreEvent[], sync: SyncMap): ScoreEvent[] {
+  return events.map((e) => {
+    if (!Number.isFinite(e.timeMs)) return e;
+    const t = e.timeMs as number;
+    const mapped = interpolateSyncMap(sync.anchors, t);
+    const dur = Number.isFinite(e.durationMs) ? (e.durationMs as number) : 0;
+    const mappedEnd = dur > 0 ? interpolateSyncMap(sync.anchors, t + dur) : mapped;
+    return {
+      ...e,
+      timeMs: mapped,
+      durationMs: Math.max(0, mappedEnd - mapped),
+    };
+  });
+}
+
 export default function App(): JSX.Element {
   // 実DOM参照（プレイフィールド，ノーツ描画層，レーン演出）．
   const playfieldRef = useRef<HTMLDivElement>(null);
@@ -642,7 +787,9 @@ export default function App(): JSX.Element {
     laneFlashTokens: [0, 0, 0, 0],
     importedEvents: [],
     midiPlaybackEvents: [],
+    syncMap: null,
     chartSourceMode: "grid",
+    audioChart: null,
     achievedPoints: 0,
     possiblePoints: 0,
     perfectCount: 0,
@@ -677,6 +824,16 @@ export default function App(): JSX.Element {
 
   // カテゴリフィルタ．null は「すべて」を表す．
   const [selectedCategory, setSelectedCategory] = useState<SongCategory | null>(null);
+  const [difficulty, setDifficulty] = useState<Difficulty>(() => {
+    try {
+      const saved = localStorage.getItem("pjsk_difficulty");
+      return isDifficulty(saved) ? saved : "normal";
+    } catch {
+      return "normal";
+    }
+  });
+  // 譜面の再構築は音源イベントのコールバックからも呼ばれるので，最新値を ref で渡す．
+  const difficultyRef = useRef<Difficulty>(difficulty);
   const filteredScores = useMemo(
     () => selectedCategory === null ? scores : scores.filter((s) => s.category === selectedCategory),
     [scores, selectedCategory]
@@ -688,12 +845,20 @@ export default function App(): JSX.Element {
     [scores]
   );
 
-  // UI 表示用 state（変更時に再描画される）．
-  const [score, setScore] = useState(0);
+  // UI 表示用（ゲームループ中の高頻度更新はDOM直接操作で再描画を回避）．
+  const scoreRef = useRef(0);
+  const comboRef = useRef(0);
+  const judgeRef = useRef("-");
+  const progressRef = useRef("Ready");
+  const scoreElRef = useRef<HTMLSpanElement[]>([]);
+  const comboElRef = useRef<HTMLSpanElement[]>([]);
+  const judgeElRef = useRef<HTMLSpanElement[]>([]);
+  const progressElRef = useRef<HTMLSpanElement[]>([]);
+  function setScore(v: number) { scoreRef.current = v; scoreElRef.current.forEach(el => { if (el) el.textContent = String(v); }); }
+  function setCombo(v: number) { comboRef.current = v; comboElRef.current.forEach(el => { if (el) el.textContent = String(v); }); }
+  function setJudge(v: string) { judgeRef.current = v; judgeElRef.current.forEach(el => { if (el) el.textContent = v; }); }
+  function setProgress(v: string) { progressRef.current = v; progressElRef.current.forEach(el => { if (el) el.textContent = v; }); }
   const [uiMode, setUiMode] = useState<"auto" | "mobile" | "desktop">("auto");
-  const [combo, setCombo] = useState(0);
-  const [judge, setJudge] = useState("-");
-  const [progress, setProgress] = useState("Ready");
   const [songTitle, setSongTitle] = useState("Loading...");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
@@ -711,11 +876,21 @@ export default function App(): JSX.Element {
   const [tapTimes, setTapTimes] = useState<number[]>([]);
   const [xmlImportState, setXmlImportState] = useState("no score");
   const [countdownText, setCountdownText] = useState("");
-  const [hitFeedback, setHitFeedback] = useState<{ text: string; className: string; visible: boolean }>({
+  const hitFeedbackRef = useRef<{ text: string; className: string; visible: boolean }>({
     text: "",
     className: "judge-perfect",
     visible: false,
   });
+  const hitFeedbackElRef = useRef<HTMLDivElement | null>(null);
+  function setHitFeedback(v: { text: string; className: string; visible: boolean } | ((prev: { text: string; className: string; visible: boolean }) => { text: string; className: string; visible: boolean })) {
+    const newVal = typeof v === "function" ? v(hitFeedbackRef.current) : v;
+    hitFeedbackRef.current = newVal;
+    const el = hitFeedbackElRef.current;
+    if (el) {
+      el.textContent = newVal.text;
+      el.className = `hit-feedback ${newVal.visible ? "" : "hidden"} ${newVal.className}`;
+    }
+  }
   const [result, setResult] = useState<{show:boolean;state:string;rank:string;acc:string;score:string;isNewBest:boolean}>({
     show:false,state:"CLEAR!",rank:"RANK A",acc:"0.0%",score:"0",isNewBest:false
   });
@@ -741,10 +916,9 @@ export default function App(): JSX.Element {
       setUiMode("desktop");
       return;
     }
-    // auto: タッチ対応＋画面が小さい場合はモバイル扱い
+    // auto: タッチ対応デバイスはモバイル扱い
     const isTouchDevice = "ontouchstart" in window || navigator.maxTouchPoints > 0;
-    const isSmallScreen = Math.min(window.innerWidth, window.innerHeight) < 768;
-    setUiMode(isTouchDevice && isSmallScreen ? "mobile" : "desktop");
+    setUiMode(isTouchDevice ? "mobile" : "desktop");
   }, []);
 
   // body 属性に UI モードを反映して CSS 分岐に使う．
@@ -973,9 +1147,39 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     rt.importedEvents = [];
     rt.midiPlaybackEvents = [];
+    rt.syncMap = null;
+    rt.audioChart = null;
     rt.chartSourceMode = "grid";
     setXmlImportState("loading...");
-    Promise.allSettled([fetchMusicXml(selectedScore), fetchMidiEvents(selectedScore)])
+    // 音源から生成した譜面があれば，楽譜の読み込みと時間軸の写像は行わない．
+    if (selectedScore.chartPath) {
+      let cancelled = false;
+      fetchChart(resolvePublicUrl(selectedScore.chartPath))
+        .then((chart) => {
+          if (cancelled) return;
+          rt.audioChart = chart;
+          rt.chartSourceMode = "chart";
+          setXmlImportState("chart: audio-aligned");
+        })
+        .catch(() => {
+          if (!cancelled) setXmlImportState("chart load failed");
+        })
+        .finally(() => {
+          if (!cancelled) resetGame();
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+    // 同期マップの expandRepeats フラグが譜面パース結果を左右するため，先に取得する．
+    fetchSyncMap(selectedScore)
+      .then((sync) => {
+        rt.syncMap = sync;
+        return Promise.allSettled([
+          fetchMusicXml(selectedScore, !!sync?.expandRepeats),
+          fetchMidiEvents(selectedScore),
+        ]);
+      })
       .then((all) => {
         const scoreEvents = all[0].status === "fulfilled" ? all[0].value : [];
         const midiEvents = all[1].status === "fulfilled" ? all[1].value : [];
@@ -997,6 +1201,19 @@ export default function App(): JSX.Element {
       .finally(() => resetGame());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedScoreId]);
+
+  // 難易度を変えたら譜面を作り直す（プレイ中なら止めて最初から）．
+  useEffect(() => {
+    try {
+      localStorage.setItem("pjsk_difficulty", difficulty);
+    } catch {
+      // 保存できなくても選択はそのまま使う．
+    }
+    if (difficultyRef.current === difficulty) return;
+    difficultyRef.current = difficulty;
+    if (runtimeRef.current.chartSourceMode === "chart") resetGame();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [difficulty]);
 
   // 譜面データがない場合のフォールバック用に，規則パターンのイベント列を生成する．
   function generateGridEvents(bpm: number): ScoreEvent[] {
@@ -1207,12 +1424,39 @@ export default function App(): JSX.Element {
     o3.stop(now + dur + 0.02);
   }
 
+  // 同期マップが適用可能か（チャートの時間軸が純粋な楽譜時間のときのみ）．
+  // MIDI がある曲は mergeScoreAndMidi が時刻を MIDI 時間軸へ置換するため，
+  // 楽譜時間に張られたアンカーとは軸が合わず適用できない．
+  function canUseSyncMap(): boolean {
+    const rt = runtimeRef.current;
+    return (
+      rt.chartSourceMode === "score" &&
+      rt.importedEvents.length > 0 &&
+      rt.midiPlaybackEvents.length === 0 &&
+      !!rt.syncMap
+    );
+  }
+
   // score/midi イベントを使って synth BGM の再生キューを初期化する．
   function startSynthBgm(): void {
     const rt = runtimeRef.current;
     stopSynthBgm();
     const source = rt.midiPlaybackEvents.length ? rt.midiPlaybackEvents : getCurrentEvents();
-    const events = source
+    // 譜面と同じ時間軸で鳴らすため，チャート構築と同一のマッピングを適用する．
+    // 同期マップが使える条件（rebuildChartForCurrentTime と同一）ならそれを優先し，
+    // なければ従来の一様正規化にフォールバックする．マッピングはチャートの
+    // 元イベント（importedEvents）から導出し，synth が別のイベント集合
+    // （フル MIDI 等）を鳴らす場合でも縮尺が食い違わないようにする．
+    let mapped: ScoreEvent[];
+    if (canUseSyncMap()) {
+      mapped = applySyncMapToEvents(source, rt.syncMap as SyncMap);
+    } else {
+      const chartSource =
+        rt.chartSourceMode === "score" && rt.importedEvents.length ? rt.importedEvents : source;
+      const norm = computeMediaNormalization(chartSource, rt.mediaDurationMs);
+      mapped = norm ? applyMediaNormalization(source, norm) : source;
+    }
+    const events = mapped
       .filter((e) => Number.isFinite(e.timeMs))
       .sort((a, b) => (a.timeMs as number) - (b.timeMs as number));
     if (!events.length) return;
@@ -1255,6 +1499,22 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     // プレイ中に再構築する場合は，過去ノーツを済み扱いにするため現在時刻を取得．
     const now = rt.gameRunning ? getTimelineMs() : 0;
+    if (rt.chartSourceMode === "chart" && rt.audioChart) {
+      // 生成済みの譜面はノーツ時刻が音源の再生位置そのものなので，密度調整や伸縮をしない．
+      const songOffset = selectedScore.offsetMs || 0;
+      // 音源のメタデータ読込前は mediaDurationMs が曲リストの概算なので，譜面側の長さも見る．
+      const cutoffMs = Math.max(0, Math.max(rt.mediaDurationMs, rt.audioChart.durationMs) - 500);
+      const notes = chartToNotes(rt.audioChart, difficultyRef.current)
+        .map((n) => ({ ...n, hitTime: n.hitTime + songOffset, holdEndTime: n.holdEndTime + songOffset }))
+        .filter((n) => n.hitTime >= 0 && n.hitTime <= cutoffMs)
+        .map((n) =>
+          n.holdEndTime > cutoffMs
+            ? { ...n, holdEndTime: cutoffMs, durationMs: Math.max(0, cutoffMs - n.hitTime) }
+            : n
+        );
+      installChart(notes, now);
+      return;
+    }
     let bpm = settingsRef.current.chartTempoBpm;
     const strictMode = !!selectedScore.strictMode;
     // beat 譜面のみの場合は曲長から BPM を再推定してズレを減らす．
@@ -1262,11 +1522,28 @@ export default function App(): JSX.Element {
       const autoBpm = estimateBpmForBeatScore(rt.importedEvents, rt.mediaDurationMs);
       if (autoBpm) bpm = autoBpm;
     }
-    let chart = fitChartToSongDuration(eventsToNotes(getCurrentEvents(), bpm, strictMode), rt.mediaDurationMs);
+    // 読み込んだ譜面は密度調整の前に実音源の時間軸へ正規化する．
+    // （正規化済みなら fitChartToSongDuration の再スケーリングは不要で，
+    // 間引きで端のノーツが消えた際の再伸縮による歪みも避けられる．）
+    // 同期マップがあればそれを最優先する（一様スケーリングではリピートや
+    // ルバートに追従できず，曲中で数秒〜数十秒ズレることを実測済み）．
+    const rawEvents = getCurrentEvents();
+    const normalizedEvents = canUseSyncMap()
+      ? applySyncMapToEvents(rawEvents, rt.syncMap as SyncMap)
+      : rt.chartSourceMode === "score" && rt.importedEvents.length
+        ? normalizeEventsToMediaDuration(rawEvents, rt.mediaDurationMs)
+        : null;
+    let chart = eventsToNotes(normalizedEvents ?? rawEvents, bpm, strictMode);
+    if (!normalizedEvents) {
+      chart = fitChartToSongDuration(chart, rt.mediaDurationMs);
+    }
     // 非 strict かつ疎な譜面は補助ノーツを混ぜる．
     if (!strictMode && isSparseChart(chart, rt.mediaDurationMs)) {
       const support = buildSupportNotes(rt.mediaDurationMs, bpm);
-      chart = fitChartToSongDuration(mergeChartWithSupport(chart, support), rt.mediaDurationMs);
+      chart = mergeChartWithSupport(chart, support);
+      if (!normalizedEvents) {
+        chart = fitChartToSongDuration(chart, rt.mediaDurationMs);
+      }
     }
     if (!strictMode) {
       chart = ensureTailNote(chart, rt.mediaDurationMs);
@@ -1282,9 +1559,25 @@ export default function App(): JSX.Element {
         holdEndTime: n.holdEndTime + songOffset,
       }));
     }
-    rt.chart = removeOverlapsWithLongNotes(chart);
+    // 曲の長さを超えるノーツを除去（末尾500ms余白を確保）
+    const cutoffMs = Math.max(0, rt.mediaDurationMs - 500);
+    chart = chart.filter((n) => n.hitTime <= cutoffMs);
+    // ロングノーツの末尾も曲内に収める
+    chart = chart.map((n) => {
+      if (n.holdEndTime > cutoffMs) {
+        return { ...n, holdEndTime: cutoffMs, durationMs: Math.max(0, cutoffMs - n.hitTime) };
+      }
+      return n;
+    });
+    installChart(removeOverlapsWithLongNotes(chart), now);
+  }
+
+  // 組み上がった譜面を実行状態へ載せ，描画要素と判定済みフラグを初期化する．
+  function installChart(chart: PlayNote[], now: number): void {
+    const rt = runtimeRef.current;
+    rt.chart = chart;
     rt.sweepIndex = 0;
-    rt.chartEndMs = Math.max(0, rt.mediaDurationMs - 8);
+    rt.chartEndMs = Math.max(0, rt.mediaDurationMs);
     // 達成率計算用の理論満点（ロングは頭+尻を想定して高め）．
     rt.possiblePoints = rt.chart.reduce((s, n) => s + (n.durationMs > 0 ? 2200 : 1000), 0);
     // SVG ノーツ要素をクリア
@@ -1343,13 +1636,20 @@ export default function App(): JSX.Element {
       rt.audio.setAttribute("playsinline", "true");
       rt.audio.crossOrigin = "anonymous";
       // 実メディア長が読めたら譜面末尾を再フィットする．
-      rt.audio.onloadedmetadata = () => {
+      const updateDuration = () => {
         if (!rt.audio) return;
         const d = rt.audio.duration;
         if (Number.isFinite(d) && d > 0) {
           rt.mediaDurationMs = d * 1000;
+          rt.chartEndMs = Math.max(0, d * 1000 - 8);
           if (!rt.gameRunning) rebuildChartForCurrentTime();
         }
+      };
+      rt.audio.onloadedmetadata = updateDuration;
+      rt.audio.ondurationchange = updateDuration;
+      // 音源の再生が終わったら確実にゲームを停止する
+      rt.audio.onended = () => {
+        if (rt.gameRunning) stopGame();
       };
       rt.audio.onerror = () => {
         rt.lastAudioError = "audio load error";
@@ -1437,7 +1737,7 @@ export default function App(): JSX.Element {
       settingsRef.current.timingOffsetMs = next;
       rt.liveOffsetPendingMs -= stepOff;
       if (rawMs - rt.liveAdjustLastUiMs >= 180) {
-        setTimingOffsetMs(Math.round(next));
+        // settingsRef は既に更新済みなので UI state 更新はゲーム終了時に行う（再描画抑制）
         persistTuneForSong(Math.round(next), settingsRef.current.chartTempoBpm);
         rt.liveAdjustLastUiMs = rawMs;
       }
@@ -1775,6 +2075,8 @@ export default function App(): JSX.Element {
     const rt = runtimeRef.current;
     const pf = playfieldRef.current;
     if (!pf) return;
+    // 音源開始待ち中はノーツを描画しない
+    if (rt.awaitingAudioStart) return;
     // 判定ラインYは「下端からのオフセット」で管理．
     const judgeLineY = pf.clientHeight - settingsRef.current.judgeLineOffsetPx;
     const approachMs = BASE_APPROACH_MS * (10 / settingsRef.current.noteSpeed);
@@ -1978,18 +2280,18 @@ export default function App(): JSX.Element {
 
   // レーンを短時間ハイライトして入力フィードバックを出す．
   function flashLane(idx: number): void {
-    laneVisualRefs.current.forEach((el, i) => {
-      if (!el) return;
-      if (i !== idx) el.classList.remove("active");
-    });
     const target = laneVisualRefs.current[idx];
     if (!target) return;
     const rt = runtimeRef.current;
     rt.laneFlashTokens[idx] += 1;
     const token = rt.laneFlashTokens[idx];
-    target.classList.add("active");
+    target.style.fill = "rgba(255, 255, 255, 0.48)";
+    target.style.opacity = "0.9";
     window.setTimeout(() => {
-      if (runtimeRef.current.laneFlashTokens[idx] === token) target.classList.remove("active");
+      if (runtimeRef.current.laneFlashTokens[idx] === token) {
+        target.style.fill = "";
+        target.style.opacity = "";
+      }
     }, 80);
   }
 
@@ -2015,13 +2317,18 @@ export default function App(): JSX.Element {
     rt.audio?.pause();
     stopSynthBgm();
     persistTuneForSong(Math.round(settingsRef.current.timingOffsetMs), settingsRef.current.chartTempoBpm);
+    // ゲーム中に抑制していたUI stateをここで同期
+    setTimingOffsetMs(Math.round(settingsRef.current.timingOffsetMs));
     setProgress("Finished");
     const acc = rt.possiblePoints > 0 ? (rt.achievedPoints / rt.possiblePoints) * 100 : 0;
     const clear = acc >= 72 && rt.missCount < Math.max(30, Math.floor(rt.chart.length * 0.22));
     // Save to local ranking and check if new personal best.
     const rankLabel = `RANK ${calcRank(acc)}`;
+    // 生成譜面は難易度ごとにノーツ数が違うので，ランキングも難易度で分ける．
+    const rankingId =
+      selectedScore.chartPath ? rankingSongId(selectedScore.id, difficultyRef.current) : selectedScore.id;
     const isNewBest = saveResult({
-      songId: selectedScore.id,
+      songId: rankingId,
       songTitle: selectedScore.title,
       score: rt.score,
       accuracy: acc,
@@ -2033,6 +2340,10 @@ export default function App(): JSX.Element {
       date: new Date().toISOString(),
     });
     setResult({ show: true, state: clear ? "CLEAR!" : "FAILED", rank: rankLabel, acc: `${acc.toFixed(1)}%`, score: `${rt.score}`, isNewBest });
+    // 全体ランキングにスコア送信
+    if (isNewBest) {
+      submitScore(rankingId, rt.score, acc, rankLabel);
+    }
   }
 
   // requestAnimationFrame のメインループ．
@@ -2076,7 +2387,10 @@ export default function App(): JSX.Element {
       setProgress(`Playing ${sec.toFixed(1)}s / ${chartSec.toFixed(1)}s`);
       rt.lastProgressUpdateMs = rawMs;
     }
-    if (rawMs >= rt.chartEndMs) {
+    // 終了条件: chartEndMs超過 / 全ノーツ判定済み+2秒 / 最後のノーツから5秒経過
+    const allJudged = rt.chart.length > 0 && rt.chart.every((n) => n.judged);
+    const lastNoteTime = rt.chart.length > 0 ? Math.max(...rt.chart.map((n) => Math.max(n.hitTime, n.holdEndTime))) : 0;
+    if (rawMs >= rt.chartEndMs || (allJudged && rawMs > lastNoteTime + 2000) || rawMs > lastNoteTime + 5000) {
       stopGame();
       return;
     }
@@ -2282,9 +2596,9 @@ export default function App(): JSX.Element {
               <p className="keyboard-hint">キー: D / F / J / K，またはレーンをタップ</p>
             </div>
             <div className="status">
-              <div><span className="label">Score</span><span>{score}</span></div>
-              <div><span className="label">Combo</span><span>{combo}</span></div>
-              <div><span className="label">Judge</span><span>{judge}</span></div>
+              <div><span className="label">Score</span><span ref={el => { if (el) scoreElRef.current[0] = el; }}>{scoreRef.current}</span></div>
+              <div><span className="label">Combo</span><span ref={el => { if (el) comboElRef.current[0] = el; }}>{comboRef.current}</span></div>
+              <div><span className="label">Judge</span><span ref={el => { if (el) judgeElRef.current[0] = el; }}>{judgeRef.current}</span></div>
               <div><span className="label">Song</span><span>{songTitle}</span></div>
               <div>
                 <span className="label">BGM</span>
@@ -2308,6 +2622,11 @@ export default function App(): JSX.Element {
                 <select value={selectedScoreId} onChange={(e) => setSelectedScoreId(e.target.value)}>
                   {filteredScores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
                 </select>
+                {selectedScore.chartPath && (
+                  <select aria-label="難易度" value={difficulty} onChange={(e) => setDifficulty(e.target.value as Difficulty)}>
+                    {DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY_LABELS[d]}</option>)}
+                  </select>
+                )}
               </div>
             </div>
           </header>
@@ -2324,6 +2643,16 @@ export default function App(): JSX.Element {
             >
               {filteredScores.map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
             </select>
+            {selectedScore.chartPath && (
+              <select
+                className="mobile-toolbar-select mobile-difficulty-select"
+                aria-label="難易度"
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value as Difficulty)}
+              >
+                {DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY_LABELS[d]}</option>)}
+              </select>
+            )}
             <button className="mobile-toolbar-btn" onClick={() => setSettingsOpen(true)}>⚙</button>
           </div>
         )}
@@ -2362,14 +2691,13 @@ export default function App(): JSX.Element {
                   onPointerDown={() => onLanePointerDown(i)}
                   onPointerUp={() => { runtimeRef.current.lanePressed[i] = false; }}
                   onPointerLeave={() => { runtimeRef.current.lanePressed[i] = false; }}
+                  onPointerCancel={() => { runtimeRef.current.lanePressed[i] = false; }}
                 />
               ))}
             </div>
             {/* ノーツDOMを imperative に配置する専用レイヤー． */}
             {/* ノーツは track SVG 内に polygon として描画 */}
-            <div className={`hit-feedback ${hitFeedback.visible ? "" : "hidden"} ${hitFeedback.className}`}>
-              {hitFeedback.text}
-            </div>
+            <div ref={hitFeedbackElRef} className={`hit-feedback hidden judge-perfect`}></div>
             {/* クリア/失敗の結果表示オーバーレイ． */}
             <div className={`result-overlay ${result.show ? "" : "hidden"}`} aria-hidden={!result.show}>
               <div className="result-card">
@@ -2395,7 +2723,15 @@ export default function App(): JSX.Element {
             <button className="primary" onClick={() => { resetGame(); startGame(); }}>START / RESTART</button>
             <button onClick={() => setSettingsOpen(true)}>SETTINGS</button>
             <button onClick={() => setRankingOpen(true)}>RANKING</button>
-            <div className="progress">{progress}</div>
+            <div className="progress"><span ref={el => { if (el) progressElRef.current[0] = el; }}>{progressRef.current}</span></div>
+            {selectedScore.credit && (
+              <div className="song-credit">
+                音源: {selectedScore.credit.performer} / {selectedScore.credit.license}{" "}
+                {isSafeHttpUrl(selectedScore.credit.sourceUrl) && (
+                  <a href={selectedScore.credit.sourceUrl} target="_blank" rel="noopener noreferrer">出典</a>
+                )}
+              </div>
+            )}
           </footer>
         )}
       </main>
@@ -2409,11 +2745,11 @@ export default function App(): JSX.Element {
           <label>現在情報</label>
           <div className="speed-row">
             <span>Score / Combo</span>
-            <span>{score} / {combo}</span>
+            <span><span ref={el => { if (el) scoreElRef.current[1] = el; }}>{scoreRef.current}</span> / <span ref={el => { if (el) comboElRef.current[1] = el; }}>{comboRef.current}</span></span>
           </div>
           <div className="speed-row">
             <span>Judge</span>
-            <span>{judge}</span>
+            <span ref={el => { if (el) judgeElRef.current[1] = el; }}>{judgeRef.current}</span>
           </div>
           <div className="speed-row">
             <span>Song</span>
@@ -2425,7 +2761,7 @@ export default function App(): JSX.Element {
           </div>
           <div className="speed-row">
             <span>Status</span>
-            <span>{progress}</span>
+            <span ref={el => { if (el) progressElRef.current[1] = el; }}>{progressRef.current}</span>
           </div>
           <div className="speed-row">
             <span>Audio Error</span>
@@ -2454,6 +2790,27 @@ export default function App(): JSX.Element {
             </select>
             <span>{selectedScore.artist}</span>
           </div>
+          {selectedScore.chartPath && (
+            <>
+              <label>難易度</label>
+              <div className="speed-row">
+                <select value={difficulty} onChange={(e) => setDifficulty(e.target.value as Difficulty)}>
+                  {DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY_LABELS[d]}</option>)}
+                </select>
+              </div>
+            </>
+          )}
+          {selectedScore.credit && (
+            <>
+              <label>音源</label>
+              <p className="song-credit">
+                {selectedScore.credit.performer} / {selectedScore.credit.license}{" "}
+                {isSafeHttpUrl(selectedScore.credit.sourceUrl) && (
+                  <a href={selectedScore.credit.sourceUrl} target="_blank" rel="noopener noreferrer">出典</a>
+                )}
+              </p>
+            </>
+          )}
           <div className="speed-row">
             <button onClick={toggleTapTempo}>TAP TEMPO</button>
             <span>{tapTempoState}</span>
@@ -2539,7 +2896,7 @@ export default function App(): JSX.Element {
 
       {/* ローカルランキング画面 */}
       {rankingOpen && (
-        <RankingScreen scores={scores} onClose={() => setRankingOpen(false)} />
+        <RankingScreen scores={scores} initialDifficulty={difficulty} onClose={() => setRankingOpen(false)} />
       )}
     </>
   );

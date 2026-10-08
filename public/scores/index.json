@@ -1,605 +1,226 @@
 [
   {
-    "id": "shishiriennu-op78-etude",
-    "title": "シシリエンヌ 作品78 ト短調",
-    "artist": "ガブリエル・フォーレ",
-    "audioUrl": "/scores/songs/shishiriennu-op78-etude/audio.mp3",
-    "mxlPath": "/scores/songs/shishiriennu-op78-etude/score.mxl",
-    "strictMode": true,
-    "offsetMs": -120,
-    "bpm": 75,
-    "lengthSec": 206,
-    "category": "クラシック"
-  },
-  {
-    "id": "lian-ai-cai-pan-40mp",
-    "title": "恋愛裁判",
-    "artist": "40mP",
-    "audioUrl": "/scores/songs/lian-ai-cai-pan-40mp/audio.mp3",
-    "mxlPath": "/scores/songs/lian-ai-cai-pan-40mp/score.mxl",
-    "offsetMs": 0,
-    "bpm": 134,
-    "lengthSec": 90,
-    "category": "ボカロ"
-  },
-  {
-    "id": "g-senjo-no-aria",
-    "title": "G線上のアリア",
-    "artist": "J.S.バッハ",
-    "audioUrl": "/scores/songs/g-senjo-no-aria/audio.mp3",
-    "mxlPath": "/scores/songs/g-senjo-no-aria/score.mxl",
-    "strictMode": true,
-    "offsetMs": -80,
-    "bpm": 60,
-    "lengthSec": 165,
-    "category": "クラシック"
-  },
-  {
-    "id": "kanon-pachelbel",
-    "title": "パッヘルベルのカノン",
-    "artist": "ヨハン・パッヘルベル",
-    "audioUrl": "/scores/songs/kanon-pachelbel/audio.mp3",
-    "mxlPath": "/scores/songs/kanon-pachelbel/score.mxl",
-    "strictMode": true,
-    "offsetMs": -80,
-    "bpm": 100,
-    "lengthSec": 245,
-    "category": "クラシック"
-  },
-  {
-    "id": "chopin-nocturne",
-    "title": "ノクターン 作品9-2",
-    "artist": "フレデリック・ショパン",
-    "audioUrl": "/scores/songs/chopin-nocturne/audio.ogg",
-    "xmlPath": "/scores/songs/chopin-nocturne/chopin_nocturne.musicxml",
-    "offsetMs": 1650,
-    "bpm": 66,
-    "lengthSec": 200,
-    "category": "クラシック"
-  },
-  {
-    "id": "chopin-practice-a",
-    "title": "ショパン練習譜面 A",
-    "artist": "フレデリック・ショパン",
-    "audioUrl": "/scores/songs/chopin-practice-a/audio.ogg",
-    "xmlPath": "/scores/songs/chopin-practice-a/chopin_practice_a.musicxml",
-    "offsetMs": 1650,
-    "bpm": 66,
-    "lengthSec": 200,
-    "category": "クラシック"
-  },
-  {
-    "id": "turkish-march-mozart",
-    "title": "トルコ行進曲",
-    "artist": "W.A.モーツァルト",
-    "audioUrl": "/scores/songs/turkish-march-mozart/audio.ogg",
-    "mxlPath": "/scores/songs/turkish-march-mozart/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 120,
-    "lengthSec": 225,
-    "category": "クラシック"
-  },
-  {
     "id": "fur-elise-beethoven",
     "title": "エリーゼのために",
     "artist": "L.v.ベートーヴェン",
     "audioUrl": "/scores/songs/fur-elise-beethoven/audio.ogg",
-    "mxlPath": "/scores/songs/fur-elise-beethoven/score.mxl",
-    "strictMode": true,
+    "chartPath": "/scores/songs/fur-elise-beethoven/chart.json",
     "offsetMs": 0,
-    "bpm": 72,
-    "lengthSec": 160,
-    "category": "クラシック"
+    "bpm": 123,
+    "lengthSec": 176,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Sebion7125",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Fur_Elise.ogg"
+    }
   },
   {
     "id": "moonlight-sonata-beethoven",
     "title": "月光ソナタ 第1楽章",
     "artist": "L.v.ベートーヴェン",
     "audioUrl": "/scores/songs/moonlight-sonata-beethoven/audio.ogg",
-    "mxlPath": "/scores/songs/moonlight-sonata-beethoven/score.mxl",
-    "strictMode": true,
+    "chartPath": "/scores/songs/moonlight-sonata-beethoven/chart.json",
     "offsetMs": 0,
-    "bpm": 44,
-    "lengthSec": 337,
-    "category": "クラシック"
-  },
-  {
-    "id": "la-campanella-liszt",
-    "title": "ラ・カンパネラ",
-    "artist": "フランツ・リスト",
-    "audioUrl": "/scores/songs/la-campanella-liszt/audio.ogg",
-    "mxlPath": "/scores/songs/la-campanella-liszt/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 97,
-    "lengthSec": 278,
-    "category": "クラシック"
-  },
-  {
-    "id": "hungarian-dance-brahms",
-    "title": "ハンガリー舞曲 第5番",
-    "artist": "ヨハネス・ブラームス",
-    "audioUrl": "/scores/songs/hungarian-dance-brahms/audio.ogg",
-    "mxlPath": "/scores/songs/hungarian-dance-brahms/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 130,
-    "lengthSec": 228,
-    "category": "クラシック"
+    "bpm": 162,
+    "lengthSec": 307,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Wikimedia Commons",
+      "license": "Public domain",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Moonlight_Sonata.ogg"
+    }
   },
   {
     "id": "minute-waltz-chopin",
-    "title": "ワルツ 作品64-2 嬰ハ短調",
+    "title": "子犬のワルツ 作品64-1",
     "artist": "フレデリック・ショパン",
     "audioUrl": "/scores/songs/minute-waltz-chopin/audio.ogg",
-    "mxlPath": "/scores/songs/minute-waltz-chopin/score.mxl",
+    "chartPath": "/scores/songs/minute-waltz-chopin/chart.json",
     "offsetMs": 0,
-    "bpm": 140,
+    "bpm": 120,
     "lengthSec": 120,
-    "category": "クラシック"
-  },
-  {
-    "id": "un-owen-was-her-touhou",
-    "title": "U.N.オーエンは彼女なのか？",
-    "artist": "ZUN (東方紅魔郷)",
-    "audioUrl": "/scores/songs/un-owen-was-her-touhou/audio.ogg",
-    "mxlPath": "/scores/songs/un-owen-was-her-touhou/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 155,
-    "lengthSec": 180,
-    "category": "東方"
-  },
-  {
-    "id": "clair-de-lune-debussy",
-    "title": "月の光",
-    "artist": "クロード・ドビュッシー",
-    "audioUrl": "/scores/songs/clair-de-lune-debussy/audio.ogg",
-    "mxlPath": "/scores/songs/clair-de-lune-debussy/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 66,
-    "lengthSec": 300,
-    "category": "クラシック"
-  },
-  {
-    "id": "liebestraum-liszt",
-    "title": "愛の夢 第3番",
-    "artist": "フランツ・リスト",
-    "audioUrl": "/scores/songs/liebestraum-liszt/audio.ogg",
-    "mxlPath": "/scores/songs/liebestraum-liszt/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 60,
-    "lengthSec": 270,
-    "category": "クラシック"
-  },
-  {
-    "id": "gymnopedie-satie",
-    "title": "ジムノペディ 第1番",
-    "artist": "エリック・サティ",
-    "audioUrl": "/scores/songs/gymnopedie-satie/audio.ogg",
-    "mxlPath": "/scores/songs/gymnopedie-satie/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 72,
-    "lengthSec": 195,
-    "category": "クラシック"
-  },
-  {
-    "id": "the-entertainer-joplin",
-    "title": "エンターテイナー",
-    "artist": "スコット・ジョプリン",
-    "audioUrl": "/scores/songs/the-entertainer-joplin/audio.ogg",
-    "mxlPath": "/scores/songs/the-entertainer-joplin/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 100,
-    "lengthSec": 240,
-    "category": "クラシック"
-  },
-  {
-    "id": "maple-leaf-rag-joplin",
-    "title": "メイプルリーフ・ラグ",
-    "artist": "スコット・ジョプリン",
-    "audioUrl": "/scores/songs/maple-leaf-rag-joplin/audio.ogg",
-    "mxlPath": "/scores/songs/maple-leaf-rag-joplin/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 100,
-    "lengthSec": 180,
-    "category": "クラシック"
-  },
-  {
-    "id": "ave-maria-schubert",
-    "title": "アヴェ・マリア",
-    "artist": "フランツ・シューベルト",
-    "audioUrl": "/scores/songs/ave-maria-schubert/audio.ogg",
-    "mxlPath": "/scores/songs/ave-maria-schubert/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 60,
-    "lengthSec": 340,
-    "category": "クラシック"
-  },
-  {
-    "id": "flight-of-bumblebee",
-    "title": "熊蜂の飛行",
-    "artist": "リムスキー＝コルサコフ",
-    "audioUrl": "/scores/songs/flight-of-bumblebee/audio.ogg",
-    "mxlPath": "/scores/songs/flight-of-bumblebee/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 160,
-    "lengthSec": 83,
-    "category": "クラシック"
-  },
-  {
-    "id": "prelude-c-major-bach",
-    "title": "前奏曲 ハ長調 BWV846",
-    "artist": "J.S.バッハ",
-    "audioUrl": "/scores/songs/prelude-c-major-bach/audio.ogg",
-    "mxlPath": "/scores/songs/prelude-c-major-bach/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 66,
-    "lengthSec": 135,
-    "category": "クラシック"
-  },
-  {
-    "id": "arabesque-debussy",
-    "title": "アラベスク 第1番",
-    "artist": "クロード・ドビュッシー",
-    "audioUrl": "/scores/songs/arabesque-debussy/audio.ogg",
-    "mxlPath": "/scores/songs/arabesque-debussy/score.mxl",
-    "strictMode": true,
-    "offsetMs": 0,
-    "bpm": 66,
-    "lengthSec": 300,
-    "category": "クラシック"
+    "category": "クラシック",
+    "credit": {
+      "performer": "Muriel Nguyen Xuan",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Muriel-Nguyen-Xuan-Chopin-valse-opus64-1.ogg"
+    }
   },
   {
     "id": "fantasie-impromptu-chopin",
     "title": "幻想即興曲",
     "artist": "フレデリック・ショパン",
     "audioUrl": "/scores/songs/fantasie-impromptu-chopin/audio.ogg",
-    "mxlPath": "/scores/songs/fantasie-impromptu-chopin/score.mxl",
-    "strictMode": true,
+    "chartPath": "/scores/songs/fantasie-impromptu-chopin/chart.json",
     "offsetMs": 0,
-    "bpm": 84,
-    "lengthSec": 285,
-    "category": "クラシック"
+    "bpm": 100,
+    "lengthSec": 333,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Rfl (English Wikipedia)",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Fantasie-Impromptu_--_Frederic_Chopin.ogg"
+    }
+  },
+  {
+    "id": "chopin-nocturne",
+    "title": "ノクターン 作品9-2",
+    "artist": "フレデリック・ショパン",
+    "audioUrl": "/scores/songs/chopin-nocturne/audio.ogg",
+    "chartPath": "/scores/songs/chopin-nocturne/chart.json",
+    "offsetMs": 0,
+    "bpm": 132,
+    "lengthSec": 203,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Beeswaxcandle, Londonjackbooks (English Wikisource)",
+      "license": "CC BY-SA 3.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Chopin_Nocturne_Op_9_No_2.ogg"
+    }
   },
   {
     "id": "wakare-no-kyoku-chopin",
     "title": "別れの曲",
     "artist": "フレデリック・ショパン",
     "audioUrl": "/scores/songs/wakare-no-kyoku-chopin/audio.ogg",
-    "mxlPath": "/scores/songs/wakare-no-kyoku-chopin/score.mxl",
-    "strictMode": true,
+    "chartPath": "/scores/songs/wakare-no-kyoku-chopin/chart.json",
     "offsetMs": 0,
-    "bpm": 66,
-    "lengthSec": 260,
-    "category": "クラシック"
+    "bpm": 134,
+    "lengthSec": 247,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Al Goldstein collection (ibiblio)",
+      "license": "CC BY-SA 2.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Frederic_Chopin_-_Opus_10_-_Twelve_Grand_Etudes_-_E_Major.ogg"
+    }
   },
   {
-    "id": "senbonzakura-kurosup",
-    "title": "千本桜",
-    "artist": "黒うさP feat. 初音ミク",
-    "audioUrl": "/scores/songs/senbonzakura-kurosup/audio.ogg",
-    "mxlPath": "/scores/songs/senbonzakura-kurosup/score.mxl",
+    "id": "la-campanella-liszt",
+    "title": "ラ・カンパネラ",
+    "artist": "フランツ・リスト",
+    "audioUrl": "/scores/songs/la-campanella-liszt/audio.ogg",
+    "chartPath": "/scores/songs/la-campanella-liszt/chart.json",
     "offsetMs": 0,
-    "bpm": 154,
-    "lengthSec": 252,
-    "category": "ボカロ"
+    "bpm": 110,
+    "lengthSec": 372,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Wikimedia Commons",
+      "license": "Public domain",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Liszt-La_Campanella-Greiss.ogg"
+    }
   },
   {
-    "id": "ghost-rule-deco27",
-    "title": "ゴーストルール",
-    "artist": "DECO*27 feat. 初音ミク",
-    "audioUrl": "/scores/songs/ghost-rule-deco27/audio.mp3",
-    "mxlPath": "/scores/songs/ghost-rule-deco27/score.mxl",
-    "offsetMs": 0,
-    "bpm": 210,
-    "lengthSec": 214,
-    "category": "ボカロ"
-  },
-  {
-    "id": "roki-mikitop",
-    "title": "ロキ",
-    "artist": "みきとP feat. 鏡音リン",
-    "audioUrl": "/scores/songs/roki-mikitop/audio.mp3",
-    "mxlPath": "/scores/songs/roki-mikitop/score.mxl",
-    "offsetMs": 0,
-    "bpm": 150,
-    "lengthSec": 228,
-    "category": "ボカロ"
-  },
-  {
-    "id": "melt-supercell",
-    "title": "メルト",
-    "artist": "ryo(supercell) feat. 初音ミク",
-    "audioUrl": "/scores/songs/melt-supercell/audio.mp3",
-    "mxlPath": "/scores/songs/melt-supercell/score.mxl",
-    "offsetMs": 0,
-    "bpm": 140,
-    "lengthSec": 265,
-    "category": "ボカロ"
-  },
-  {
-    "id": "world-is-mine-supercell",
-    "title": "ワールドイズマイン",
-    "artist": "ryo(supercell) feat. 初音ミク",
-    "audioUrl": "/scores/songs/world-is-mine-supercell/audio.mp3",
-    "mxlPath": "/scores/songs/world-is-mine-supercell/score.mxl",
-    "offsetMs": 0,
-    "bpm": 166,
-    "lengthSec": 261,
-    "category": "ボカロ"
-  },
-  {
-    "id": "cruel-angels-thesis-eva",
-    "title": "残酷な天使のテーゼ",
-    "artist": "高橋洋子",
-    "audioUrl": "/scores/songs/cruel-angels-thesis-eva/audio.mp3",
-    "mxlPath": "/scores/songs/cruel-angels-thesis-eva/score.mxl",
+    "id": "liebestraum-liszt",
+    "title": "愛の夢 第3番",
+    "artist": "フランツ・リスト",
+    "audioUrl": "/scores/songs/liebestraum-liszt/audio.ogg",
+    "chartPath": "/scores/songs/liebestraum-liszt/chart.json",
     "offsetMs": 0,
     "bpm": 128,
-    "lengthSec": 244,
-    "category": "アニメ"
+    "lengthSec": 283,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Al Goldstein collection (ibiblio)",
+      "license": "CC BY-SA 2.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Franz_Liszt_-_Liebestraum,_Ab_Major.ogg"
+    }
   },
   {
-    "id": "guren-no-yumiya-aot",
-    "title": "紅蓮の弓矢",
-    "artist": "Linked Horizon",
-    "audioUrl": "/scores/songs/guren-no-yumiya-aot/audio.ogg",
-    "mxlPath": "/scores/songs/guren-no-yumiya-aot/score.mxl",
-    "offsetMs": 0,
-    "bpm": 180,
-    "lengthSec": 86,
-    "category": "アニメ"
-  },
-  {
-    "id": "bohemian-rhapsody-queen",
-    "title": "ボヘミアン・ラプソディ",
-    "artist": "Queen",
-    "audioUrl": "/scores/songs/bohemian-rhapsody-queen/audio.mp3",
-    "mxlPath": "/scores/songs/bohemian-rhapsody-queen/score.mxl",
-    "offsetMs": 0,
-    "bpm": 72,
-    "lengthSec": 355,
-    "category": "洋楽"
-  },
-  {
-    "id": "dont-stop-me-now-queen",
-    "title": "Don't Stop Me Now",
-    "artist": "Queen",
-    "audioUrl": "/scores/songs/dont-stop-me-now-queen/audio.mp3",
-    "mxlPath": "/scores/songs/dont-stop-me-now-queen/score.mxl",
-    "offsetMs": 0,
-    "bpm": 156,
-    "lengthSec": 210,
-    "category": "洋楽"
-  },
-  {
-    "id": "connect-madoka",
-    "title": "コネクト",
-    "artist": "ClariS (魔法少女まどか☆マギカ OP)",
-    "audioUrl": "/scores/songs/connect-madoka/audio.mp3",
-    "mxlPath": "/scores/songs/connect-madoka/score.mxl",
-    "offsetMs": 0,
-    "bpm": 175,
-    "lengthSec": 270,
-    "category": "アニメ"
-  },
-  {
-    "id": "only-my-railgun",
-    "title": "only my railgun",
-    "artist": "fripSide (とある科学の超電磁砲 OP)",
-    "audioUrl": "/scores/songs/only-my-railgun/audio.ogg",
-    "mxlPath": "/scores/songs/only-my-railgun/score.mxl",
-    "offsetMs": 0,
-    "bpm": 143,
-    "lengthSec": 258,
-    "category": "アニメ"
-  },
-  {
-    "id": "renai-circulation",
-    "title": "恋愛サーキュレーション",
-    "artist": "花澤香菜 (化物語 OP4)",
-    "audioUrl": "/scores/songs/renai-circulation/audio.ogg",
-    "mxlPath": "/scores/songs/renai-circulation/score.mxl",
-    "offsetMs": 0,
-    "bpm": 120,
-    "lengthSec": 252,
-    "category": "アニメ"
-  },
-  {
-    "id": "bloody-stream-jojo",
-    "title": "BLOODY STREAM",
-    "artist": "Coda (ジョジョの奇妙な冒険 OP2)",
-    "audioUrl": "/scores/songs/bloody-stream-jojo/audio.ogg",
-    "mxlPath": "/scores/songs/bloody-stream-jojo/score.mxl",
-    "offsetMs": 0,
-    "bpm": 131,
-    "lengthSec": 264,
-    "category": "アニメ"
-  },
-  {
-    "id": "fly-me-to-the-moon",
-    "title": "Fly Me to the Moon",
-    "artist": "Bart Howard",
-    "audioUrl": "/scores/songs/fly-me-to-the-moon/audio.mp3",
-    "mxlPath": "/scores/songs/fly-me-to-the-moon/score.mxl",
-    "offsetMs": 0,
-    "bpm": 120,
-    "lengthSec": 213,
-    "category": "洋楽"
-  },
-  {
-    "id": "pretender-higedan",
-    "title": "Pretender",
-    "artist": "Official髭男dism",
-    "audioUrl": "/scores/songs/pretender-higedan/audio.mp3",
-    "mxlPath": "/scores/songs/pretender-higedan/score.mxl",
-    "offsetMs": 0,
-    "bpm": 92,
-    "lengthSec": 330,
-    "category": "J-POP"
-  },
-  {
-    "id": "yoru-ni-kakeru-yoasobi",
-    "title": "夜に駆ける",
-    "artist": "YOASOBI",
-    "audioUrl": "/scores/songs/yoru-ni-kakeru-yoasobi/audio.mp3",
-    "mxlPath": "/scores/songs/yoru-ni-kakeru-yoasobi/score.mxl",
-    "offsetMs": 0,
-    "bpm": 130,
-    "lengthSec": 258,
-    "category": "J-POP"
-  },
-  {
-    "id": "septette-dead-princess",
-    "title": "亡き王女の為のセプテット",
-    "artist": "ZUN (東方紅魔郷)",
-    "audioUrl": "/scores/songs/septette-dead-princess/audio.mp3",
-    "mxlPath": "/scores/songs/septette-dead-princess/score.mxl",
-    "offsetMs": 0,
-    "bpm": 144,
-    "lengthSec": 137,
-    "category": "東方"
-  },
-  {
-    "id": "rolling-girl",
-    "title": "ローリンガール",
-    "artist": "wowaka feat. 初音ミク",
-    "audioUrl": "/scores/songs/rolling-girl/audio.mp3",
-    "mxlPath": "/scores/songs/rolling-girl/score.mxl",
-    "offsetMs": 0,
-    "bpm": 208,
-    "lengthSec": 199,
-    "category": "ボカロ"
-  },
-  {
-    "id": "tell-your-world",
-    "title": "Tell Your World",
-    "artist": "kz(livetune) feat. 初音ミク",
-    "audioUrl": "/scores/songs/tell-your-world/audio.mp3",
-    "mxlPath": "/scores/songs/tell-your-world/score.mxl",
-    "offsetMs": 0,
-    "bpm": 150,
-    "lengthSec": 248,
-    "category": "ボカロ"
-  },
-  {
-    "id": "unravel-tokyo-ghoul",
-    "title": "unravel",
-    "artist": "TK from 凛として時雨 (東京喰種 OP)",
-    "audioUrl": "/scores/songs/unravel-tokyo-ghoul/audio.mp3",
-    "mxlPath": "/scores/songs/unravel-tokyo-ghoul/score.mxl",
-    "offsetMs": 0,
-    "bpm": 144,
-    "lengthSec": 237,
-    "category": "アニメ"
-  },
-  {
-    "id": "blue-bird-naruto",
-    "title": "ブルーバード",
-    "artist": "いきものがかり (NARUTO疾風伝 OP3)",
-    "audioUrl": "/scores/songs/blue-bird-naruto/audio.mp3",
-    "mxlPath": "/scores/songs/blue-bird-naruto/score.mxl",
-    "offsetMs": 0,
-    "bpm": 150,
-    "lengthSec": 188,
-    "category": "アニメ"
-  },
-  {
-    "id": "crossing-field-sao",
-    "title": "crossing field",
-    "artist": "LiSA (ソードアート・オンライン OP)",
-    "audioUrl": "/scores/songs/crossing-field-sao/audio.mp3",
-    "mxlPath": "/scores/songs/crossing-field-sao/score.mxl",
-    "offsetMs": 0,
-    "bpm": 185,
-    "lengthSec": 277,
-    "category": "アニメ"
-  },
-  {
-    "id": "take-on-me-aha",
-    "title": "Take On Me",
-    "artist": "a-ha",
-    "audioUrl": "/scores/songs/take-on-me-aha/audio.mp3",
-    "mxlPath": "/scores/songs/take-on-me-aha/score.mxl",
-    "offsetMs": 0,
-    "bpm": 169,
-    "lengthSec": 232,
-    "category": "洋楽"
-  },
-  {
-    "id": "we-will-rock-you-queen",
-    "title": "We Will Rock You",
-    "artist": "Queen",
-    "audioUrl": "/scores/songs/we-will-rock-you-queen/audio.mp3",
-    "mxlPath": "/scores/songs/we-will-rock-you-queen/score.mxl",
-    "offsetMs": 0,
-    "bpm": 82,
-    "lengthSec": 135,
-    "category": "洋楽"
-  },
-  {
-    "id": "yesterday-beatles",
-    "title": "Yesterday",
-    "artist": "The Beatles",
-    "audioUrl": "/scores/songs/yesterday-beatles/audio.mp3",
-    "mxlPath": "/scores/songs/yesterday-beatles/score.mxl",
-    "offsetMs": 0,
-    "bpm": 100,
-    "lengthSec": 108,
-    "category": "洋楽"
-  },
-  {
-    "id": "mutanity-chiyozono",
-    "title": "みゅ〜たにてぃ",
-    "artist": "千代園るる (feat. りむる)",
-    "audioUrl": "/scores/songs/mutanity-chiyozono/audio.ogg",
-    "xmlPath": "/scores/songs/mutanity-chiyozono/score.musicxml",
-    "offsetMs": 0,
-    "bpm": 158,
-    "lengthSec": 180,
-    "category": "オリジナル"
-  },
-  {
-    "id": "watashi-wa-suishitai",
-    "title": "わたしは水死体",
-    "artist": "千代園るる (feat. ナースロボ＿タイプT)",
-    "audioUrl": "/scores/songs/watashi-wa-suishitai/audio.ogg",
-    "xmlPath": "/scores/songs/watashi-wa-suishitai/score.musicxml",
-    "offsetMs": 0,
-    "bpm": 138,
-    "lengthSec": 180,
-    "category": "オリジナル"
-  },
-  {
-    "id": "fumei-na-world",
-    "title": "不明なわーるど",
-    "artist": "千代園るる (feat. LeuR)",
-    "audioUrl": "/scores/songs/fumei-na-world/audio.ogg",
-    "xmlPath": "/scores/songs/fumei-na-world/score.musicxml",
+    "id": "clair-de-lune-debussy",
+    "title": "月の光",
+    "artist": "クロード・ドビュッシー",
+    "audioUrl": "/scores/songs/clair-de-lune-debussy/audio.ogg",
+    "chartPath": "/scores/songs/clair-de-lune-debussy/chart.json",
     "offsetMs": 0,
     "bpm": 132,
-    "lengthSec": 170,
-    "category": "オリジナル"
+    "lengthSec": 304,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Laurens Goedhart",
+      "license": "Public domain",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Clair_de_lune_(Claude_Debussy)_Suite_bergamasque.ogg"
+    }
   },
   {
-    "id": "genjitsu-tohi",
-    "title": "げんじつとーひこう！",
-    "artist": "千代園るる (feat. 重音テト, 足立レイ)",
-    "audioUrl": "/scores/songs/genjitsu-tohi/audio.ogg",
-    "xmlPath": "/scores/songs/genjitsu-tohi/score.musicxml",
+    "id": "arabesque-debussy",
+    "title": "アラベスク 第1番",
+    "artist": "クロード・ドビュッシー",
+    "audioUrl": "/scores/songs/arabesque-debussy/audio.ogg",
+    "chartPath": "/scores/songs/arabesque-debussy/chart.json",
     "offsetMs": 0,
-    "bpm": 162,
-    "lengthSec": 200,
-    "category": "オリジナル"
+    "bpm": 115,
+    "lengthSec": 293,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Patrizia Prati",
+      "license": "CC BY-SA 4.0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Claude_Debussy_-_Premi%C3%A8re_Arabesque_-_Patrizia_Prati.ogg"
+    }
+  },
+  {
+    "id": "gymnopedie-satie",
+    "title": "ジムノペディ 第1番",
+    "artist": "エリック・サティ",
+    "audioUrl": "/scores/songs/gymnopedie-satie/audio.ogg",
+    "chartPath": "/scores/songs/gymnopedie-satie/chart.json",
+    "offsetMs": 0,
+    "bpm": 88,
+    "lengthSec": 184,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Robin Alciatore (Musopen)",
+      "license": "Public domain",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Erik_Satie_-_gymnopedies_-_la_1_ere._lent_et_douloureux.ogg"
+    }
+  },
+  {
+    "id": "prelude-c-major-bach",
+    "title": "前奏曲 ハ長調 BWV846",
+    "artist": "J.S.バッハ",
+    "audioUrl": "/scores/songs/prelude-c-major-bach/audio.ogg",
+    "chartPath": "/scores/songs/prelude-c-major-bach/chart.json",
+    "offsetMs": 0,
+    "bpm": 111,
+    "lengthSec": 163,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Kimiko Ishizaka",
+      "license": "CC0",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Kimiko_Ishizaka_-_Bach_-_Well-Tempered_Clavier,_Book_1_-_01_Prelude_No._1_in_C_major,_BWV_846.ogg"
+    }
+  },
+  {
+    "id": "the-entertainer-joplin",
+    "title": "エンターテイナー",
+    "artist": "スコット・ジョプリン",
+    "audioUrl": "/scores/songs/the-entertainer-joplin/audio.ogg",
+    "chartPath": "/scores/songs/the-entertainer-joplin/chart.json",
+    "offsetMs": 0,
+    "bpm": 164,
+    "lengthSec": 234,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Wikimedia Commons",
+      "license": "Public domain",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:The_Entertainer_-_Scott_Joplin.ogg"
+    }
+  },
+  {
+    "id": "maple-leaf-rag-joplin",
+    "title": "メイプルリーフ・ラグ",
+    "artist": "スコット・ジョプリン",
+    "audioUrl": "/scores/songs/maple-leaf-rag-joplin/audio.ogg",
+    "chartPath": "/scores/songs/maple-leaf-rag-joplin/chart.json",
+    "offsetMs": 0,
+    "bpm": 152,
+    "lengthSec": 53,
+    "category": "クラシック",
+    "credit": {
+      "performer": "Wikimedia Commons",
+      "license": "Public domain",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Maple_Leaf_Rag.ogg"
+    }
   }
 ]

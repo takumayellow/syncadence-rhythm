@@ -26,9 +26,6 @@ body {
   min-height: 100vh;
   /* Modern browsers: use dynamic viewport height (excludes browser chrome) */
   min-height: 100dvh;
-  /* iOS Safari fallback: -webkit-fill-available must come last to override 100dvh
-     on Safari versions that have the 100vh/dvh bug */
-  min-height: -webkit-fill-available;
   font-family: "Zen Kaku Gothic New", sans-serif;
   color: var(--text);
   background:
@@ -41,6 +38,16 @@ body {
   overscroll-behavior: none;
   -webkit-user-select: none;
   user-select: none;
+}
+
+/* -webkit-fill-available is only needed by browsers without dvh support (old iOS Safari).
+   Gated behind @supports so it can't win the cascade on browsers (e.g. Chrome/Android) that
+   parse the value but don't size it the same way dvh does — that mismatch was cutting the
+   playfield short on Chrome while unaffected engines (LINE in-app browser) looked fine. */
+@supports not (height: 100dvh) {
+  body {
+    min-height: -webkit-fill-available;
+  }
 }
 
 .bg-glow {
@@ -127,6 +134,8 @@ body {
       transparent 16px
     );
   perspective: 1200px;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .track-bg {
@@ -136,6 +145,8 @@ body {
   /* clip-path は JS から inline style で設定 */
   background:
     linear-gradient(180deg, rgba(161, 224, 255, 0.12), rgba(32, 39, 94, 0.28) 35%, rgba(10, 14, 30, 0.44));
+  will-change: clip-path;
+  transform: translateZ(0);
 }
 
 .track-perspective {
@@ -147,7 +158,6 @@ body {
 
 .lane-fill {
   opacity: 0.32;
-  transition: fill 80ms ease, opacity 80ms ease;
 }
 
 .lane-fill-1,
@@ -170,10 +180,6 @@ body {
   stroke-width: 1.6;
 }
 
-.lane-fill.active {
-  fill: rgba(255, 255, 255, 0.48);
-  opacity: 0.9;
-}
 
 .track-grid {
   position: absolute;
@@ -213,23 +219,21 @@ body {
   grid-template-columns: repeat(4, 1fr);
   /* clip-path は JS から inline style で設定 */
   z-index: 3;
+  transform: translateZ(0);
 }
 
 .lane {
   border: none;
   background: transparent;
   cursor: pointer;
-  transition: background 80ms ease;
   appearance: none;
   -webkit-appearance: none;
   -webkit-tap-highlight-color: transparent;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   outline: none;
   touch-action: none;
-}
-
-.lane:active,
-.lane.active {
-  background: transparent;
 }
 
 .judge-line {
@@ -334,23 +338,29 @@ body[data-ui-mode="mobile"] {
   overflow: hidden;
   padding: 0;
   margin: 0;
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  display: block;
+}
+
+@supports not (height: 100dvh) {
+  body[data-ui-mode="mobile"] {
+    height: -webkit-fill-available;
+  }
 }
 
 body[data-ui-mode="mobile"] .app {
-  /* position:fixed anchors to all 4 viewport edges — no height calculation needed */
   position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  inset: 0;
   padding: 0;
   margin: 0;
   gap: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  width: 100vw;
-  max-width: 100vw;
+  width: 100%;
+  max-width: 100%;
 }
 
 /* 回転促しメッセージ：デフォルト非表示 */
@@ -449,7 +459,7 @@ body[data-ui-mode="mobile"] .playfield-wrap {
 body[data-ui-mode="mobile"] .playfield {
   width: 100% !important;
   flex: 1 1 0 !important;
-  height: auto !important;
+  height: 0 !important;
   min-height: 0 !important;
   max-height: none !important;
   border-width: 1px;
@@ -501,6 +511,12 @@ body[data-ui-mode="mobile"] .mobile-toolbar-btn {
   min-height: 36px;
   white-space: nowrap;
   border-radius: 8px;
+}
+
+body[data-ui-mode="mobile"] .mobile-toolbar-select.mobile-difficulty-select {
+  flex: 0 0 auto;
+  width: 7.5em;
+  text-overflow: clip;
 }
 
 body[data-ui-mode="mobile"] .mobile-toolbar-select {
@@ -651,6 +667,17 @@ button.primary {
 .progress {
   margin-left: auto;
   opacity: 0.9;
+}
+
+.song-credit {
+  width: 100%;
+  margin: 0;
+  font-size: 0.72rem;
+  opacity: 0.7;
+}
+
+.song-credit a {
+  color: inherit;
 }
 
 .settings-panel {
