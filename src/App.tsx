@@ -8,9 +8,27 @@ import { saveResult, getRanking } from "./ranking";
 import { RankingScreen, submitScore } from "./RankingScreen";
 import type { ChartFile, Difficulty } from "./chart";
 import { DIFFICULTIES, DIFFICULTY_LABELS, chartToNotes, fetchChart, isDifficulty, rankingSongId } from "./chart";
+import LatencyCalibration from "./LatencyCalibration";
 
 const LANE_COUNT = 4;
 const HIT_KEYS = ["KeyD", "KeyF", "KeyJ", "KeyK"];
+// READY 中に押されても開始しないキー (ブラウザ操作・設定ショートカット・修飾キー)．
+const NON_START_KEYS = new Set([
+  "Escape", "Tab", "CapsLock", "NumLock", "ScrollLock", "PrintScreen", "Pause", "ContextMenu",
+  "ShiftLeft", "ShiftRight", "ControlLeft", "ControlRight", "AltLeft", "AltRight", "MetaLeft", "MetaRight",
+  "BracketLeft", "BracketRight", "Minus", "Equal",
+]);
+
+function isStartKey(e: KeyboardEvent): boolean {
+  if (e.repeat || e.ctrlKey || e.metaKey || e.altKey) return false;
+  if (/^F\d+$/.test(e.code) || e.code.startsWith("Audio") || e.code.startsWith("Media") || e.code.startsWith("Browser")) return false;
+  if (NON_START_KEYS.has(e.code)) return false;
+  // 曲リストなどの入力欄や，Space/Enter で押されるボタンにフォーカスがあるときは，その操作を優先する．
+  const target = e.target as HTMLElement | null;
+  if (!target) return true;
+  if (/^(INPUT|SELECT|TEXTAREA)$/.test(target.tagName)) return false;
+  return !(target.tagName === "BUTTON" && (e.code === "Space" || e.code === "Enter" || e.code === "NumpadEnter"));
+}
 const BASE_APPROACH_MS = 2100;
 const NOTE_BASE_WIDTH = 118;
 const AUTO_CALIBRATION_MS = 10000;
@@ -150,6 +168,25 @@ function lowerBoundHitTime(notes: PlayNote[], value: number): number {
     else hi = mid;
   }
   return lo;
+}
+
+// 旧譜面は音源より遅れていたので，それに合わせて保存された補正値は新しい譜面では逆にずれの元になる．
+// 一度だけ消して 0 から測り直してもらう．
+const TIMING_STORAGE_VERSION = "2";
+function migrateTimingStorage(): void {
+  try {
+    if (localStorage.getItem("pjsk_timing_storage_version") === TIMING_STORAGE_VERSION) return;
+    localStorage.removeItem("pjsk_timing_offset_ms");
+    const stale: string[] = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (key?.startsWith("pjsk_song_tune_")) stale.push(key);
+    }
+    stale.forEach((key) => localStorage.removeItem(key));
+    localStorage.setItem("pjsk_timing_storage_version", TIMING_STORAGE_VERSION);
+  } catch {
+    // ストレージが使えない環境では何もしない．
+  }
 }
 
 // 中央値を返す．外れ値に強いので BPM 推定などで使う．
@@ -895,6 +932,11 @@ export default function App(): JSX.Element {
     show:false,state:"CLEAR!",rank:"RANK A",acc:"0.0%",score:"0",isNewBest:false
   });
   const [rankingOpen, setRankingOpen] = useState(false);
+  const [latencyOpen, setLatencyOpen] = useState(false);
+  // モーダルや結果画面が出ている間は，キーやタップで勝手に始めない．
+  const startBlockedRef = useRef(false);
+  // キー処理の effect は古い描画のクロージャを持つので，最新の開始処理を ref 経由で呼ぶ．
+  const startFromReadyRef = useRef<() => boolean>(() => false);
   const feedbackTimerRef = useRef<number | null>(null);
   const customAudioObjectUrlRef = useRef<string | null>(null);
   const [mobileEntryDismissed, setMobileEntryDismissed] = useState(false);
@@ -959,6 +1001,7 @@ export default function App(): JSX.Element {
 
   // 永続化された設定値を初期読み込みする．
   useEffect(() => {
+    migrateTimingStorage();
     const savedSpeed = Number(localStorage.getItem("pjsk_note_speed"));
     const savedTiming = Number(localStorage.getItem("pjsk_timing_offset_ms"));
     const savedTempo = Number(localStorage.getItem("pjsk_chart_tempo_bpm"));
@@ -2456,6 +2499,13 @@ export default function App(): JSX.Element {
     }
   }
 
+  // タイミング調整画面を開く．プレイ中の曲は止めてから測る．
+  function openLatencyCalibration(): void {
+    resetGame();
+    setSettingsOpen(false);
+    setLatencyOpen(true);
+  }
+
   // 曲ごとのチューニング保存キーを返す．
   function tuneKey(meta: ScoreMeta): string {
     return `pjsk_song_tune_${encodeURIComponent(meta.audioUrl || meta.id)}`;
@@ -2467,6 +2517,8 @@ export default function App(): JSX.Element {
 
   // 現在曲向けに timing / bpm 設定を永続化する．
   function persistTuneForSong(timing: number, bpm: number): void {
+    // 生成譜面は音源の時刻そのものなので，残るずれは端末の遅れだけ．曲ごとには持たない．
+    if (selectedScore.chartPath) return;
     localStorage.setItem(
       tuneKey(selectedScore),
       JSON.stringify({ timingOffsetMs: timing, chartTempoBpm: bpm })
@@ -2482,6 +2534,7 @@ export default function App(): JSX.Element {
 
   // 曲切替時に保存済みチューニングを読み込む．
   function loadTuneForSong(meta: ScoreMeta): void {
+    if (meta.chartPath) return;
     try {
       const raw = localStorage.getItem(tuneKey(meta));
       if (!raw) return;
@@ -2502,6 +2555,18 @@ export default function App(): JSX.Element {
     rebuildChartForCurrentTime();
     setProgress("Reset tune for this song");
   }
+
+  startBlockedRef.current = settingsOpen || rankingOpen || latencyOpen || result.show;
+
+  // READY 中のキー入力やレーンのタップでそのまま開始する．
+  function startFromReady(): boolean {
+    const rt = runtimeRef.current;
+    if (rt.gameRunning || rt.countdown.length || rt.calibrationActive || startBlockedRef.current) return false;
+    resetGame();
+    startGame();
+    return true;
+  }
+  startFromReadyRef.current = startFromReady;
 
   // 選択曲が変わったら曲別チューニングを適用．
   useEffect(() => {
@@ -2525,6 +2590,10 @@ export default function App(): JSX.Element {
       if (tapTempoMode && (e.code === "Space" || e.code === "KeyT")) {
         e.preventDefault();
         registerTap();
+        return;
+      }
+      if (isStartKey(e) && startFromReadyRef.current()) {
+        e.preventDefault();
         return;
       }
       const idx = HIT_KEYS.indexOf(e.code);
@@ -2562,6 +2631,7 @@ export default function App(): JSX.Element {
       flashLane(i);
       return;
     }
+    if (startFromReady()) return;
     runtimeRef.current.lanePressed[i] = true;
     flashLane(i);
     pressLane(i);
@@ -2653,6 +2723,7 @@ export default function App(): JSX.Element {
                 {DIFFICULTIES.map((d) => <option key={d} value={d}>{DIFFICULTY_LABELS[d]}</option>)}
               </select>
             )}
+            <button className="mobile-toolbar-btn" aria-label="タイミング調整" onClick={openLatencyCalibration}>⏱</button>
             <button className="mobile-toolbar-btn" onClick={() => setSettingsOpen(true)}>⚙</button>
           </div>
         )}
@@ -2662,7 +2733,14 @@ export default function App(): JSX.Element {
             {!isMobileUi && (
               <div className="mobile-song-chip" aria-hidden="true">{selectedScore.title}</div>
             )}
-            <div className="cue">{runtimeRef.current.gameRunning ? "" : "READY"}</div>
+            <div className="cue">
+              {runtimeRef.current.gameRunning || countdownText ? "" : (
+                <>
+                  READY
+                  <span className="cue-hint">{isMobileUi ? "タップでスタート" : "キーを押すとスタート"}</span>
+                </>
+              )}
+            </div>
             <div className={`countdown-overlay ${countdownText ? "" : "hidden"}`}>{countdownText}</div>
             <div className="judge-line" />
             {/* 判定ライン手前の背景装飾（パース付き）．ノーツと同じ座標系で描画． */}
@@ -2722,6 +2800,7 @@ export default function App(): JSX.Element {
           <footer className="controls">
             <button className="primary" onClick={() => { resetGame(); startGame(); }}>START / RESTART</button>
             <button onClick={() => setSettingsOpen(true)}>SETTINGS</button>
+            <button onClick={openLatencyCalibration}>タイミング調整</button>
             <button onClick={() => setRankingOpen(true)}>RANKING</button>
             <div className="progress"><span ref={el => { if (el) progressElRef.current[0] = el; }}>{progressRef.current}</span></div>
             {selectedScore.credit && (
@@ -2776,6 +2855,10 @@ export default function App(): JSX.Element {
           <div className="speed-row">
             <input type="range" min={-300} max={300} step={10} value={timingOffsetMs} onChange={(e) => setTimingOffsetMs(Number(e.target.value))} />
             <span>{Math.round(timingOffsetMs)}</span>
+          </div>
+          <div className="speed-row">
+            <button onClick={openLatencyCalibration}>タップで測定</button>
+            <span>音に合わせたタップから自動で決める</span>
           </div>
           <label>Chart BPM</label>
           <div className="speed-row">
@@ -2897,6 +2980,18 @@ export default function App(): JSX.Element {
       {/* ローカルランキング画面 */}
       {rankingOpen && (
         <RankingScreen scores={scores} initialDifficulty={difficulty} onClose={() => setRankingOpen(false)} />
+      )}
+
+      {latencyOpen && (
+        <LatencyCalibration
+          currentOffsetMs={timingOffsetMs}
+          onApply={(v) => {
+            setTimingOffsetMs(v);
+            setProgress(`Timing offset: ${v > 0 ? "+" : ""}${v}ms`);
+            setLatencyOpen(false);
+          }}
+          onClose={() => setLatencyOpen(false)}
+        />
       )}
     </>
   );
